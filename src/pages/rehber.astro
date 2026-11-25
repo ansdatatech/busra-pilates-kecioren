@@ -1,0 +1,542 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { decodeJwt } from 'jose';
+
+const token = Astro.cookies.get('auth_token')?.value;
+if (!token) return Astro.redirect('/');
+
+let rol = '';
+try {
+    const decoded = decodeJwt(token);
+    rol = decoded.rol as string;
+} catch (error) {
+    return Astro.redirect('/');
+}
+---
+
+<Layout title="Üye Rehberi & Paket Takibi | Büşra Pilates Center Keçiören">
+
+    <style is:global>
+        :root {
+            --manu-teal: #6B4C63;        /* Kurumsal Mürdüm */
+            --manu-teal-light: #9E6B8E;  /* Yumuşak Lila/Mürdüm */
+            --manu-gold: #E563B1;        /* Canlı Gül Pembe */
+            --manu-bg: #FDF5FA;          /* Çok Açık Pudra */
+        }
+        
+        .avatar-circle {
+            width: 42px;
+            height: 42px;
+            background-color: var(--manu-teal-light);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+
+        select.hoca-select {
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            appearance: none !important;
+            background-image: none !important;
+            cursor: pointer;
+        }
+    </style>
+
+    <div class="text-white p-2 d-flex justify-content-between align-items-center" style="background-color: #3d2838; border-bottom: 3px solid var(--manu-gold);">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span class="fw-bold" style="color: #FDF5FA;"><i class="fa-solid fa-address-book me-2" style="color: var(--manu-gold);"></i> ÜYE REHBERİ & PAKET TAKİBİ</span>
+            <a href="/" class="btn btn-sm btn-outline-light"><i class="fa-solid fa-arrow-left me-1"></i> Panele Dön</a>
+        </div>
+    </div>
+
+    <div class="container mt-4 mb-5">
+        <div class="card shadow-sm border-0 rounded-4" style="border-top: 4px solid var(--manu-teal) !important;">
+            
+            <div class="card-header bg-white border-0 pt-4 pb-3">
+                <div class="row align-items-center gy-3">
+                    <div class="col-lg-3 d-flex align-items-center">
+                        <h5 class="fw-bold m-0 text-dark"><i class="fa-solid fa-users me-2" style="color: var(--manu-teal);"></i>Kayıtlı Üyeler</h5>
+                        <span class="badge ms-2" style="background-color: var(--manu-gold);" id="toplamKisiBadge">0 Üye</span>
+                    </div>
+                    
+                    <div class="col-lg-9 d-flex flex-wrap justify-content-lg-end align-items-center gap-2">
+                        <div class="input-group input-group-sm" style="max-width: 200px;">
+                            <span class="input-group-text bg-white border-end-0" style="border-color: var(--manu-teal-light);"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                            <input type="text" id="aramaKutusu" class="form-control border-start-0" style="border-color: var(--manu-teal-light);" placeholder="İsim veya Tel Ara...">
+                        </div>
+
+                        <select id="siralamaSec" class="form-select form-select-sm w-auto fw-bold hoca-select px-3" style="border-color: var(--manu-teal-light); color: var(--manu-teal); background-color: #FDF5FA;" title="Sıralama">
+                            <option value="ad_asc">Sırala: A → Z</option>
+                            <option value="ad_desc">Sırala: Z → A</option>
+                            <option value="kalan_asc">Kalan Ders: Azdan Çoğa</option>
+                            <option value="kalan_desc">Kalan Ders: Çoktan Aza</option>
+                            <option value="bitis_asc">Bitiş Tarihi: En Yakın</option>
+                        </select>
+
+                        <select id="cinsiyetFiltresi" class="form-select form-select-sm w-auto fw-bold hoca-select px-3" style="border-color: var(--manu-teal-light); color: var(--manu-teal); background-color: #FDF5FA;">
+                            <option value="hepsi">Cinsiyet: Tümü</option>
+                            <option value="kadin">♀ Kadın</option>
+                            <option value="erkek">♂ Erkek</option>
+                        </select>
+
+                        <select id="hocaFiltresi" class="form-select form-select-sm w-auto fw-bold hoca-select px-3" style="border-color: var(--manu-teal-light); color: var(--manu-teal); background-color: #FDF5FA;">
+                            <option value="hepsi">Tüm Eğitmenler</option>
+                        </select>
+
+                        <button class="btn btn-sm text-white fw-bold shadow-sm text-nowrap" style="background-color: var(--manu-teal);" onclick="csvIndir()">
+                            <i class="fa-solid fa-file-excel me-1"></i> Excel'e Aktar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle m-0">
+                        <thead class="table-light text-muted small text-uppercase">
+                            <tr>
+                                <th class="ps-4" style="width: 24%;">Üye Adı Soyadı</th>
+                                <th style="width: 17%;">İletişim Numarası</th>
+                                <th style="width: 23%;">Kalan Ders & Bitiş Tarihi</th>
+                                <th style="width: 18%;">Eğitmenleri</th>
+                                <th class="text-end pe-4" style="width: 18%;">Hızlı İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rehberTabloGövdesi">
+                            <tr><td colspan="5" class="text-center py-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2" style="color: var(--manu-teal);"></i> Yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- ÜYE & PAKET DÜZENLEME MODALI -->
+    <div class="modal fade" id="paketModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header text-white rounded-top-4" style="background-color: var(--manu-teal);">
+                    <h6 class="modal-title fw-bold"><i class="fa-solid fa-ticket me-2" style="color: var(--manu-gold);"></i>Üye & Paket Bilgisi</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="fw-bold text-center mb-3" style="color: var(--manu-teal);" id="paketUyeAdi"></p>
+                    <input type="hidden" id="paketUyeId">
+
+                    <div class="mb-3 text-center">
+                        <label class="form-label small text-muted fw-bold d-block">Hızlı Paket Tanımla</label>
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            <button type="button" class="btn btn-outline-secondary fw-bold" onclick="hizliPaketSec(8)">8 Ders</button>
+                            <button type="button" class="btn btn-outline-secondary fw-bold" onclick="hizliPaketSec(10)">10 Ders</button>
+                            <button type="button" class="btn btn-outline-secondary fw-bold" onclick="hizliPaketSec(12)">12 Ders</button>
+                            <button type="button" class="btn btn-outline-secondary fw-bold" onclick="hizliPaketSec(16)">16 Ders</button>
+                        </div>
+                    </div>
+
+                    <form id="paketFormu">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted"><i class="fa-solid fa-venus-mars me-1" style="color: var(--manu-gold);"></i> Cinsiyet</label>
+                            <select id="paketCinsiyet" class="form-select form-select-sm fw-bold border-secondary">
+                                <option value="kadin">Kadın</option>
+                                <option value="erkek">Erkek</option>
+                            </select>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Toplam Paket</label>
+                                <input type="number" id="paketToplam" class="form-control fw-bold text-center" min="0" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Kalan Ders</label>
+                                <input type="number" id="paketKalan" class="form-control fw-bold text-center" min="0" required>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-sm btn-outline-danger w-100 fw-bold mb-3" onclick="birDersDus()">
+                            <i class="fa-solid fa-minus me-1"></i> 1 Ders Düş
+                        </button>
+
+                        <button type="submit" id="paketKaydetBtn" class="btn text-white w-100 fw-bold shadow-sm" style="background-color: var(--manu-gold);">
+                            <i class="fa-solid fa-save me-1"></i> KAYDET
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script is:inline>
+    let tumMusteriler = [];
+    let aktifMusteriler = [];
+    let musteriHocaGecmisi = {};
+    let tumEgitmenler = [];
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        await verileriYukle();
+
+        document.getElementById('paketFormu').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('paketKaydetBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> KAYDEDİLİYOR...';
+
+            try {
+                const res = await fetch('/api/rehber', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: parseInt(document.getElementById('paketUyeId').value),
+                        cinsiyet: document.getElementById('paketCinsiyet').value,
+                        toplamDers: parseInt(document.getElementById('paketToplam').value) || 0,
+                        kalanDers: parseInt(document.getElementById('paketKalan').value) || 0
+                    })
+                });
+
+                if (res.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('paketModal')).hide();
+                    await verileriYukle();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({ title: 'Güncellendi!', text: 'Üye ve paket bilgileri kaydedildi.', icon: 'success', timer: 1200, showConfirmButton: false });
+                    }
+                } else {
+                    alert("Bilgiler güncellenirken hata oluştu.");
+                }
+            } catch (err) {
+                alert("Sunucu bağlantı hatası.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-save me-1"></i> KAYDET';
+            }
+        });
+    });
+
+    function egitmenFiltreDoldur(egitmenListesi) {
+        const select = document.getElementById('hocaFiltresi');
+        if (!select) return;
+        const oncekiDeger = select.value;
+        const aktifler = (Array.isArray(egitmenListesi) ? egitmenListesi : []).filter(e => e.aktif);
+        select.innerHTML = '<option value="hepsi">Tüm Eğitmenler</option>' +
+            aktifler.map(e => `<option value="${e.anahtar}">${e.adSoyad}</option>`).join('');
+        if (oncekiDeger && Array.from(select.options).some(o => o.value === oncekiDeger)) {
+            select.value = oncekiDeger;
+        }
+    }
+
+    function hocaEslesmesiBul(r, aktifEgitmenler) {
+        if (r.notlar) {
+            const anahtarEslesen = aktifEgitmenler.find(e => e.anahtar === r.notlar);
+            if (anahtarEslesen) return anahtarEslesen;
+        }
+        const odaNo = parseInt(r.alanId, 10) || 1;
+        return aktifEgitmenler[odaNo - 1] || aktifEgitmenler[0] || null;
+    }
+
+    function tarihTrFormat(isoStr) {
+        if (!isoStr) return '-';
+        const [y, m, d] = String(isoStr).split('-');
+        if (!y || !m || !d) return isoStr;
+        return `${d}.${m}.${y}`;
+    }
+
+    function bitiseKalanGunMetni(isoStr) {
+        if (!isoStr) return '';
+        const [y, m, d] = String(isoStr).split('-').map(Number);
+        const hedef = new Date(y, m - 1, d);
+        const bugun = new Date();
+        bugun.setHours(0, 0, 0, 0);
+        const farkGun = Math.round((hedef.getTime() - bugun.getTime()) / (1000 * 60 * 60 * 24));
+        if (farkGun < 0) return 'Süresi doldu';
+        if (farkGun === 0) return 'Bugün bitiyor';
+        if (farkGun === 1) return 'Yarın bitiyor';
+        return `${farkGun} gün kaldı`;
+    }
+
+    function aktifKalanBul(m) {
+        return m.gelecekDers > 0 ? m.gelecekDers : (m.kalanDers || 0);
+    }
+
+    async function verileriYukle() {
+        try {
+            const [resRehber, resRez, resEg] = await Promise.all([
+                fetch('/api/rehber'),
+                fetch('/api/rezervasyon?tarih=hepsi'),
+                fetch('/api/egitmenler')
+            ]);
+
+            if(resRehber.ok && resRez.ok) {
+                const rawMusteriler = await resRehber.json();
+                const tumRezervasyonlar = await resRez.json();
+                if (resEg.ok) {
+                    const egData = await resEg.json();
+                    tumEgitmenler = Array.isArray(egData) ? egData : [];
+                }
+
+                const aktifEgitmenler = tumEgitmenler.filter(e => e.aktif);
+                egitmenFiltreDoldur(aktifEgitmenler);
+
+                musteriHocaGecmisi = {};
+                tumRezervasyonlar.forEach(r => {
+                    const telTemiz = r.telefon ? r.telefon.replace(/\D/g, '') : '';
+                    const anahtar = telTemiz || r.kisiAdi.toLocaleLowerCase('tr-TR');
+                    
+                    if(!musteriHocaGecmisi[anahtar]) musteriHocaGecmisi[anahtar] = new Map();
+                    
+                    const eslesen = hocaEslesmesiBul(r, tumEgitmenler.length > 0 ? tumEgitmenler : aktifEgitmenler);
+                    if (eslesen) {
+                        musteriHocaGecmisi[anahtar].set(eslesen.anahtar, {
+                            adSoyad: eslesen.adSoyad,
+                            renk: eslesen.renk || 'var(--manu-teal)'
+                        });
+                    }
+                });
+
+                const islenenAnahtarlar = new Set();
+                const tekillestirilmisMusteriler = [];
+
+                rawMusteriler.forEach(m => {
+                    const isimTemiz = isimFormatla(m.adSoyad);
+                    const telTemiz = m.telefon ? m.telefon.replace(/\D/g, '') : '';
+                    const benzersizAnahtar = telTemiz ? telTemiz : isimTemiz.toLocaleLowerCase('tr-TR');
+
+                    if (!islenenAnahtarlar.has(benzersizAnahtar)) {
+                        islenenAnahtarlar.add(benzersizAnahtar);
+                        tekillestirilmisMusteriler.push({
+                            id: m.id,
+                            adSoyad: isimTemiz,
+                            telefon: m.telefon,
+                            cinsiyet: m.cinsiyet || 'kadin',
+                            toplamDers: m.toplamDers || 0,
+                            kalanDers: m.kalanDers || 0,
+                            gelecekDers: m.gelecekDers || 0,
+                            tamamlananDers: m.tamamlananDers || 0,
+                            sonDersTarihi: m.sonDersTarihi || null,
+                            sonDersSaati: m.sonDersSaati || null,
+                            anahtar: benzersizAnahtar
+                        });
+                    }
+                });
+
+                tumMusteriler = tekillestirilmisMusteriler; 
+                listeyiFiltrele();
+            } else {
+                document.getElementById('rehberTabloGövdesi').innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Veri çekilemedi.</td></tr>`;
+            }
+        } catch (err) {
+            document.getElementById('rehberTabloGövdesi').innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Bağlantı hatası veya sunucu yanıt vermiyor!</td></tr>`;
+        }
+    }
+
+    function listeyiFiltrele() {
+        const kelime = document.getElementById('aramaKutusu').value.toLocaleLowerCase('tr-TR');
+        const secilenHoca = document.getElementById('hocaFiltresi').value;
+        const secilenCinsiyet = document.getElementById('cinsiyetFiltresi').value;
+        const siralama = document.getElementById('siralamaSec').value;
+
+        aktifMusteriler = tumMusteriler.filter(m => {
+            const anahtar = m.anahtar;
+            const metinUyuyor = m.adSoyad.toLocaleLowerCase('tr-TR').includes(kelime) || (m.telefon && m.telefon.includes(kelime));
+            const cinsiyetUyuyor = (secilenCinsiyet === 'hepsi') || ((m.cinsiyet || 'kadin') === secilenCinsiyet);
+            
+            let hocaUyuyor = true;
+            if (secilenHoca !== 'hepsi') {
+                const hocalarMap = musteriHocaGecmisi[anahtar];
+                hocaUyuyor = hocalarMap ? hocalarMap.has(secilenHoca) : false;
+            }
+
+            return metinUyuyor && cinsiyetUyuyor && hocaUyuyor;
+        });
+
+        // Seçili kritere göre sırala (varsayılan: A -> Z alfabetik)
+        aktifMusteriler.sort((a, b) => {
+            if (siralama === 'ad_desc') {
+                return b.adSoyad.localeCompare(a.adSoyad, 'tr');
+            }
+            if (siralama === 'kalan_asc') {
+                const fark = aktifKalanBul(a) - aktifKalanBul(b);
+                return fark !== 0 ? fark : a.adSoyad.localeCompare(b.adSoyad, 'tr');
+            }
+            if (siralama === 'kalan_desc') {
+                const fark = aktifKalanBul(b) - aktifKalanBul(a);
+                return fark !== 0 ? fark : a.adSoyad.localeCompare(b.adSoyad, 'tr');
+            }
+            if (siralama === 'bitis_asc') {
+                const aTarih = a.sonDersTarihi || '9999-12-31';
+                const bTarih = b.sonDersTarihi || '9999-12-31';
+                const fark = aTarih.localeCompare(bTarih);
+                return fark !== 0 ? fark : a.adSoyad.localeCompare(b.adSoyad, 'tr');
+            }
+            return a.adSoyad.localeCompare(b.adSoyad, 'tr');
+        });
+
+        tabloyuCiz(aktifMusteriler);
+    }
+
+    document.getElementById('aramaKutusu').addEventListener('input', listeyiFiltrele);
+    document.getElementById('hocaFiltresi').addEventListener('change', listeyiFiltrele);
+    document.getElementById('cinsiyetFiltresi').addEventListener('change', listeyiFiltrele);
+    document.getElementById('siralamaSec').addEventListener('change', listeyiFiltrele);
+
+    window.paketModalAc = function(id, adSoyad, toplam, kalan, cinsiyet) {
+        document.getElementById('paketUyeId').value = id;
+        document.getElementById('paketUyeAdi').innerText = adSoyad;
+        document.getElementById('paketToplam').value = toplam;
+        document.getElementById('paketKalan').value = kalan;
+        document.getElementById('paketCinsiyet').value = cinsiyet || 'kadin';
+        new bootstrap.Modal(document.getElementById('paketModal')).show();
+    };
+
+    window.hizliPaketSec = function(adet) {
+        document.getElementById('paketToplam').value = adet;
+        document.getElementById('paketKalan').value = adet;
+    };
+
+    window.birDersDus = function() {
+        const kalanInput = document.getElementById('paketKalan');
+        const mevcut = parseInt(kalanInput.value) || 0;
+        if (mevcut > 0) kalanInput.value = mevcut - 1;
+    };
+
+    function isimFormatla(isim) {
+        if (!isim) return "";
+        const parcalar = isim.trim().split(/\s+/);
+        if (parcalar.length === 1) {
+            return parcalar[0].charAt(0).toLocaleUpperCase('tr-TR') + parcalar[0].slice(1).toLocaleLowerCase('tr-TR');
+        }
+        const sonKelime = parcalar.pop().toLocaleUpperCase('tr-TR');
+        const ilkKisim = parcalar.map(p => p.charAt(0).toLocaleUpperCase('tr-TR') + p.slice(1).toLocaleLowerCase('tr-TR')).join(' ');
+        return ilkKisim + ' ' + sonKelime;
+    }
+
+    function basHarfleriAl(isim) {
+        if (!isim) return "P"; 
+        const parcalar = isim.trim().split(/\s+/);
+        if (parcalar.length === 1) return parcalar[0].charAt(0).toLocaleUpperCase('tr-TR');
+        return (parcalar[0].charAt(0) + parcalar[parcalar.length - 1].charAt(0)).toLocaleUpperCase('tr-TR');
+    }
+
+    function telefonFormatla(tel) {
+        if (!tel) return '<span class="text-muted fst-italic">Belirtilmemiş</span>';
+        const temiz = tel.replace(/\D/g, '');
+        if (temiz.length === 11 && temiz.startsWith('0')) {
+            return `0(${temiz.substring(1,4)}) ${temiz.substring(4,7)} ${temiz.substring(7,9)} ${temiz.substring(9,11)}`;
+        }
+        return tel; 
+    }
+
+    function tabloyuCiz(liste) {
+        const tbody = document.getElementById('rehberTabloGövdesi');
+        tbody.innerHTML = '';
+        
+        document.getElementById('toplamKisiBadge').innerText = `${liste.length} Üye`;
+        
+        if (liste.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-muted"><i class="fa-regular fa-folder-open fs-1 mb-3 d-block opacity-25"></i>Filtreye uygun üye bulunamadı.</td></tr>';
+            return;
+        }
+        
+        liste.forEach(m => {
+            const duzgunIsim = m.adSoyad;
+            const telTemiz = m.telefon ? m.telefon.replace(/\D/g,'') : '';
+            const anahtar = m.anahtar; 
+            const cinsiyet = m.cinsiyet || 'kadin';
+            
+            const formatliTel = telefonFormatla(m.telefon);
+            const telLink = m.telefon 
+                ? `<a href="tel:${telTemiz}" class="text-decoration-none fw-bold" style="color: var(--manu-teal); letter-spacing: 0.5px;">${formatliTel}</a>` 
+                : formatliTel;
+            
+            const cinsiyetRozet = cinsiyet === 'erkek'
+                ? `<span class="badge rounded-pill ms-1" style="background-color: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-size: 0.72rem;" title="Erkek Üye"><i class="fa-solid fa-mars"></i></span>`
+                : `<span class="badge rounded-pill ms-1" style="background-color: #fdf2f8; color: #db2777; border: 1px solid #fbcfe8; font-size: 0.72rem;" title="Kadın Üye"><i class="fa-solid fa-venus"></i></span>`;
+
+            const aktifKalan = aktifKalanBul(m);
+            const aktifToplam = Math.max(m.toplamDers || 0, aktifKalan);
+            let paketHtml = '';
+            if (aktifToplam > 0) {
+                const badgeClass = aktifKalan <= 2 ? 'bg-danger' : 'bg-success';
+                const uyariIkon = aktifKalan <= 2 ? '<i class="fa-solid fa-triangle-exclamation me-1"></i>' : '';
+                let bitisNotu = '';
+                if (m.sonDersTarihi) {
+                    const kalanGun = bitiseKalanGunMetni(m.sonDersTarihi);
+                    bitisNotu = `<small class="d-block text-muted mt-1" style="font-size: 0.74rem;"><i class="fa-regular fa-calendar-check me-1" style="color: var(--manu-teal);"></i>Bitiş: <strong class="text-dark">${tarihTrFormat(m.sonDersTarihi)}</strong> <span class="text-secondary">(${kalanGun})</span></small>`;
+                } else if (aktifKalan > 0) {
+                    bitisNotu = `<small class="d-block text-muted mt-1 fst-italic" style="font-size: 0.72rem;">Takvimde planlı ders yok</small>`;
+                }
+                paketHtml = `<span class="badge ${badgeClass} px-3 py-2 shadow-sm" style="font-size: 0.82rem;">${uyariIkon}${aktifKalan} / ${aktifToplam} Ders</span>${bitisNotu}`;
+            } else {
+                paketHtml = `<span class="badge bg-light text-muted border fw-normal">Paket Tanımlanmadı</span>`;
+            }
+
+            const hocalarMap = musteriHocaGecmisi[anahtar];
+            let hocalarHtml = '<span class="text-muted small fst-italic">-</span>';
+            if (hocalarMap && hocalarMap.size > 0) {
+                hocalarHtml = Array.from(hocalarMap.values()).map(h => {
+                    return `<span class="badge text-white me-1 fw-normal" style="background-color: ${h.renk};">${h.adSoyad}</span>`;
+                }).join('');
+            }
+
+            const profilBtn = `<a href="/uye/${m.id}" class="btn btn-sm btn-outline-primary shadow-sm me-1" title="Üye Profili & Geçmişi"><i class="fa-solid fa-id-card"></i></a>`;
+            const paketBtn = `<button class="btn btn-sm text-white shadow-sm me-1" style="background-color: var(--manu-gold);" onclick="paketModalAc(${m.id}, '${duzgunIsim.replace(/'/g, "\\'")}', ${m.toplamDers}, ${m.kalanDers}, '${cinsiyet}')" title="Üye / Paket Düzenle"><i class="fa-solid fa-ticket"></i></button>`;
+            const aramaBtn = m.telefon ? `<a href="tel:${telTemiz}" class="btn btn-sm btn-outline-secondary shadow-sm me-1" title="Hemen Ara"><i class="fa-solid fa-phone"></i></a>` : '';
+            const wpBtn = m.telefon ? `<a href="https://wa.me/${telTemiz}" target="_blank" class="btn btn-sm btn-success shadow-sm" title="WhatsApp'tan Mesaj Yaz"><i class="fa-brands fa-whatsapp"></i></a>` : '';
+            
+            const avatarRenk = cinsiyet === 'erkek' ? "var(--manu-teal)" : "var(--manu-gold)";
+            
+            tbody.innerHTML += `
+                <tr>
+                    <td class="ps-4">
+                        <div class="d-flex align-items-center">
+                            <div class="avatar-circle me-3" style="background-color: ${avatarRenk};">${basHarfleriAl(duzgunIsim)}</div>
+                            <div>
+                                <a href="/uye/${m.id}" class="fw-bold text-dark fs-6 text-decoration-none">${duzgunIsim}</a> ${cinsiyetRozet}
+                            </div>
+                        </div>
+                    </td>
+                    <td>${telLink}</td>
+                    <td>${paketHtml}</td>
+                    <td>${hocalarHtml}</td>
+                    <td class="text-end pe-4">${profilBtn} ${paketBtn} ${aramaBtn} ${wpBtn}</td>
+                </tr>
+            `;
+        });
+    }
+
+    window.csvIndir = function() {
+        if(!aktifMusteriler || aktifMusteriler.length === 0) { alert("İndirilecek kayıt bulunamadı."); return; }
+        
+        const secilenHoca = document.getElementById('hocaFiltresi').value;
+        const secilenEg = tumEgitmenler.find(e => e.anahtar === secilenHoca);
+        const dosyaAdi = secilenHoca === 'hepsi' 
+            ? `BusraPilates_Tum_Uyeler_${new Date().toISOString().slice(0,10)}.csv`
+            : `BusraPilates_${(secilenEg ? secilenEg.adSoyad : secilenHoca).replace(/\s+/g, '_')}_Uyeleri_${new Date().toISOString().slice(0,10)}.csv`;
+
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFFÜye Adı Soyadı,Cinsiyet,Telefon Numarası,Kalan Ders,Toplam Paket,Bitiş Tarihi,Eğitmenler\n";
+        
+        aktifMusteriler.forEach(k => {
+            const tel = k.telefon ? k.telefon : "Belirtilmemiş";
+            const cinsiyetStr = (k.cinsiyet || 'kadin') === 'erkek' ? 'Erkek' : 'Kadın';
+            const bitisStr = k.sonDersTarihi ? tarihTrFormat(k.sonDersTarihi) : '-';
+            const hocalarMap = musteriHocaGecmisi[k.anahtar];
+            const hocaListesi = hocalarMap ? Array.from(hocalarMap.values()).map(h => h.adSoyad).join(' / ') : '-';
+            csvContent += `"${k.adSoyad}","${cinsiyetStr}","${tel}","${aktifKalanBul(k)}","${k.toplamDers}","${bitisStr}","${hocaListesi}"\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", dosyaAdi);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+</script>

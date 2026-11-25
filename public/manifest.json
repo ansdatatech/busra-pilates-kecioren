@@ -1,0 +1,21 @@
+{
+  "name": "Büşra Pilates Center Keçiören",
+  "short_name": "Büşra Pilates",
+  "description": "Büşra Pilates Center Keçiören Ders ve Randevu Yönetim Sistemi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FDF5FA",
+  "theme_color": "#6B4C63",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

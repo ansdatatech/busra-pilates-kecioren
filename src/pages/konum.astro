@@ -1,0 +1,27 @@
+---
+// src/pages/konum.astro
+const origin = Astro.url.origin;
+const mapsUrl = "https://maps.app.goo.gl/MUXsFHjRBJeefjRQ6";
+---
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Büşra Pilates Center Keçiören | Konum</title>
+    
+    <!-- WhatsApp Özel Önizleme Etiketleri -->
+    <meta property="og:title" content="Büşra Pilates Center Keçiören">
+    <meta property="og:description" content="Stüdyomuzun yol tarifi ve harita konumu için tıklayın.">
+    <meta property="og:image" content={`${origin}/icon-512.png`}>
+    <meta property="og:url" content={`${origin}/konum`}>
+    <meta property="og:type" content="website">
+
+    <!-- Google Haritalar Yönlendirmesi -->
+    <meta http-equiv="refresh" content={`0;url=${mapsUrl}`}>
+</head>
+<body>
+    <script define:vars={{ mapsUrl }}>
+        window.location.href = mapsUrl;
+    </script>
+</body>
+</html>

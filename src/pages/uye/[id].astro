@@ -1,0 +1,556 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { db } from '../../db';
+import { musteriler, rezervasyonlar, iptalKayitlari, egitmenler } from '../../db/schema';
+import { eq, asc, desc } from 'drizzle-orm';
+import { decodeJwt } from 'jose';
+
+export const prerender = false;
+
+const token = Astro.cookies.get('auth_token')?.value;
+if (!token) return Astro.redirect('/');
+
+try {
+    decodeJwt(token);
+} catch (error) {
+    return Astro.redirect('/');
+}
+
+const uyeId = parseInt(Astro.params.id || '', 10);
+if (isNaN(uyeId)) return Astro.redirect('/rehber');
+
+const [uyeListesi, tumRez, tumIptaller, tumEgitmenler] = await Promise.all([
+    db.select().from(musteriler).where(eq(musteriler.id, uyeId)).limit(1),
+    db.select().from(rezervasyonlar),
+    db.select().from(iptalKayitlari).orderBy(desc(iptalKayitlari.iptalTarihi)),
+    db.select().from(egitmenler).orderBy(asc(egitmenler.id))
+]);
+
+if (uyeListesi.length === 0) return Astro.redirect('/rehber');
+const uye = uyeListesi[0];
+
+const mTel = uye.telefon ? uye.telefon.replace(/\D/g, '') : '';
+const mAd = (uye.adSoyad || '').trim().toLocaleLowerCase('tr-TR');
+
+function isimFormatla(isim: string) {
+    if (!isim) return '';
+    const parcalar = isim.trim().split(/\s+/);
+    if (parcalar.length === 1) {
+        return parcalar[0].charAt(0).toLocaleUpperCase('tr-TR') + parcalar[0].slice(1).toLocaleLowerCase('tr-TR');
+    }
+    const son = parcalar.pop()!.toLocaleUpperCase('tr-TR');
+    const ilk = parcalar.map(p => p.charAt(0).toLocaleUpperCase('tr-TR') + p.slice(1).toLocaleLowerCase('tr-TR')).join(' ');
+    return `${ilk} ${son}`;
+}
+
+function basHarfler(isim: string) {
+    const p = (isim || 'P').trim().split(/\s+/);
+    if (p.length === 1) return p[0].charAt(0).toLocaleUpperCase('tr-TR');
+    return (p[0].charAt(0) + p[p.length - 1].charAt(0)).toLocaleUpperCase('tr-TR');
+}
+
+function tarihTr(isoStr?: string | null) {
+    if (!isoStr) return '-';
+    const [y, m, d] = String(isoStr).split('-');
+    if (!y || !m || !d) return isoStr;
+    return `${d}.${m}.${y}`;
+}
+
+function zamanDamgasiTr(dt?: Date | string | null) {
+    if (!dt) return '-';
+    const d = new Date(dt);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleString('tr-TR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function egitmenBul(anahtar?: string | null, alanId?: number | null) {
+    if (anahtar) {
+        const eslesen = tumEgitmenler.find(e => e.anahtar === anahtar);
+        if (eslesen) return { ad: eslesen.adSoyad, renk: eslesen.renk || '#6B4C63' };
+    }
+    if (alanId) {
+        const sirali = tumEgitmenler[alanId - 1];
+        if (sirali) return { ad: sirali.adSoyad, renk: sirali.renk || '#6B4C63' };
+    }
+    return { ad: anahtar || '-', renk: '#6c757d' };
+}
+
+function uyeEslesiyorMu(kayit: { musteriId?: number | null; telefon?: string | null; kisiAdi?: string | null }) {
+    if (kayit.musteriId && kayit.musteriId === uye.id) return true;
+    const rTel = kayit.telefon ? kayit.telefon.replace(/\D/g, '') : '';
+    if (mTel && rTel && mTel === rTel) return true;
+    return (kayit.kisiAdi || '').trim().toLocaleLowerCase('tr-TR') === mAd;
+}
+
+const uyeRezleri = tumRez.filter(uyeEslesiyorMu);
+const uyeIptalleri = tumIptaller.filter(uyeEslesiyorMu);
+
+const simdi = new Date();
+const bugunIso = `${simdi.getFullYear()}-${String(simdi.getMonth() + 1).padStart(2, '0')}-${String(simdi.getDate()).padStart(2, '0')}`;
+const suankiSaat = `${String(simdi.getHours()).padStart(2, '0')}:${String(simdi.getMinutes()).padStart(2, '0')}`;
+
+const gelecekDersler = uyeRezleri
+    .filter(r => r.tarih > bugunIso || (r.tarih === bugunIso && (r.saat || '00:00') >= suankiSaat))
+    .sort((a, b) => `${a.tarih} ${a.saat}`.localeCompare(`${b.tarih} ${b.saat}`));
+
+const tamamlananDersler = uyeRezleri
+    .filter(r => !(r.tarih > bugunIso || (r.tarih === bugunIso && (r.saat || '00:00') >= suankiSaat)))
+    .sort((a, b) => `${b.tarih} ${b.saat}`.localeCompare(`${a.tarih} ${a.saat}`));
+
+const aktifKalan = gelecekDersler.length > 0 ? gelecekDersler.length : (uye.kalanDers || 0);
+const aktifToplam = Math.max(uye.toplamDers || 0, aktifKalan);
+const sonDersTarihi = gelecekDersler.length > 0 ? gelecekDersler[gelecekDersler.length - 1].tarih : null;
+
+const duzgunAd = isimFormatla(uye.adSoyad);
+const cinsiyet = uye.cinsiyet || 'kadin';
+const avatarRenk = cinsiyet === 'erkek' ? '#6B4C63' : '#E563B1';
+
+function islemRozet(islemTuru: string) {
+    if (islemTuru === 'telafi') return { metin: 'Telafi Eklendi', cls: 'bg-info text-dark' };
+    if (islemTuru === 'iade') return { metin: 'Hak İade (+1)', cls: 'bg-success' };
+    if (islemTuru === 'seri_iptal') return { metin: 'Seri İptal', cls: 'bg-secondary' };
+    return { metin: 'Ders Yandı', cls: 'bg-danger' };
+}
+---
+
+<Layout title={`${duzgunAd} | Üye Profili`}>
+
+    <style is:global>
+        :root {
+            --manu-teal: #6B4C63;
+            --manu-teal-light: #9E6B8E;
+            --manu-gold: #E563B1;
+            --manu-bg: #FDF5FA;
+        }
+        .profil-avatar {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        #profilTabs .nav-link {
+            color: var(--manu-teal);
+            font-weight: 700;
+        }
+        #profilTabs .nav-link.active {
+            background-color: var(--manu-teal);
+            color: #fff;
+        }
+    </style>
+
+    <div class="text-white p-2 d-flex justify-content-between align-items-center" style="background-color: #3d2838; border-bottom: 3px solid var(--manu-gold);">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span class="fw-bold small text-uppercase"><i class="fa-solid fa-id-card me-2" style="color: var(--manu-gold);"></i> Üye Profil Kartı</span>
+            <a href="/rehber" class="btn btn-sm btn-outline-light fw-bold"><i class="fa-solid fa-arrow-left me-1"></i> Rehbere Dön</a>
+        </div>
+    </div>
+
+    <div class="container mt-4 mb-5">
+
+        <!-- ÜST ÜYE KARTI -->
+        <div class="card shadow-sm border-0 rounded-4 mb-4" style="border-top: 4px solid var(--manu-teal) !important;">
+            <div class="card-body p-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="profil-avatar shadow-sm" style={`background-color: ${avatarRenk};`}>
+                        {basHarfler(duzgunAd)}
+                    </div>
+                    <div>
+                        <h4 class="fw-bold mb-1 text-dark d-flex align-items-center flex-wrap gap-2">
+                            {duzgunAd}
+                            {cinsiyet === 'erkek' ? (
+                                <span class="badge rounded-pill" style="background-color: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-size: 0.75rem;"><i class="fa-solid fa-mars me-1"></i>Erkek</span>
+                            ) : (
+                                <span class="badge rounded-pill" style="background-color: #fdf2f8; color: #db2777; border: 1px solid #fbcfe8; font-size: 0.75rem;"><i class="fa-solid fa-venus me-1"></i>Kadın</span>
+                            )}
+                        </h4>
+                        <div class="text-muted small">
+                            <i class="fa-solid fa-phone me-1" style="color: var(--manu-teal);"></i>
+                            {uye.telefon ? (
+                                <a href={`tel:${mTel}`} class="text-decoration-none fw-bold" style="color: var(--manu-teal);">{uye.telefon}</a>
+                            ) : (
+                                <span>Telefon belirtilmemiş</span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm text-white fw-bold px-3 shadow-sm" style="background-color: var(--manu-teal);" data-bs-toggle="modal" data-bs-target="#uyeDuzenleModal">
+                        <i class="fa-solid fa-pen me-1"></i> Düzenle
+                    </button>
+                    {uye.telefon && (
+                        <>
+                            <a href={`tel:${mTel}`} class="btn btn-sm btn-outline-secondary fw-bold px-3">
+                                <i class="fa-solid fa-phone me-1"></i> Ara
+                            </a>
+                            <a href={`https://wa.me/${mTel.startsWith('0') ? '9' + mTel : '90' + mTel}`} target="_blank" class="btn btn-sm btn-success fw-bold px-3">
+                                <i class="fa-brands fa-whatsapp me-1"></i> WhatsApp
+                            </a>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+
+        <!-- SAĞLIK & EĞİTMEN NOTLARI -->
+        <div class="card shadow-sm border-0 rounded-4 mb-4 bg-white border-start border-4" style="border-color: var(--manu-gold) !important;">
+            <div class="card-body p-3 p-md-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label for="saglikNotuInput" class="fw-bold small text-uppercase mb-0" style="color: var(--manu-teal);">
+                        <i class="fa-solid fa-notes-medical me-1" style="color: var(--manu-gold);"></i> Sağlık & Eğitmen Notları
+                    </label>
+                    <button type="button" id="notKaydetBtn" class="btn btn-sm text-white fw-bold px-3 shadow-sm" style="background-color: var(--manu-gold);">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Notu Kaydet
+                    </button>
+                </div>
+                <textarea
+                    id="saglikNotuInput"
+                    class="form-control bg-light border-secondary-subtle"
+                    rows="3"
+                    placeholder="Örn: Bel fıtığı (L4-L5), diz hassasiyeti, hamilelik 22. hafta, reformer yay tercihi..."
+                >{uye.notlar || ''}</textarea>
+                <small id="notDurumMetni" class="text-muted d-block mt-1" style="font-size: 0.75rem;"></small>
+            </div>
+        </div>
+
+        <!-- ÖZET İSTATİSTİK KARTLARI -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white border-start border-4" style="border-color: var(--manu-gold) !important;">
+                    <div class="card-body py-3">
+                        <div class="small text-muted fw-bold text-uppercase">Kalan Ders</div>
+                        <div class="fs-3 fw-bold" style="color: var(--manu-teal);">{aktifKalan} <small class="fs-6 text-muted fw-normal">/ {aktifToplam}</small></div>
+                        <div class="small text-muted mt-1">
+                            {sonDersTarihi ? `Bitiş: ${tarihTr(sonDersTarihi)}` : 'Planlı ders yok'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white border-start border-4 border-success">
+                    <div class="card-body py-3">
+                        <div class="small text-muted fw-bold text-uppercase">Katıldığı Ders</div>
+                        <div class="fs-3 fw-bold text-success">{tamamlananDersler.length}</div>
+                        <div class="small text-muted mt-1">Tamamlanan toplam</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white border-start border-4 border-primary">
+                    <div class="card-body py-3">
+                        <div class="small text-muted fw-bold text-uppercase">Gelecek Ders</div>
+                        <div class="fs-3 fw-bold text-primary">{gelecekDersler.length}</div>
+                        <div class="small text-muted mt-1">Takvimde planlı</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white border-start border-4 border-danger">
+                    <div class="card-body py-3">
+                        <div class="small text-muted fw-bold text-uppercase">İptal Edilen</div>
+                        <div class="fs-3 fw-bold text-danger">{uyeIptalleri.length}</div>
+                        <div class="small text-muted mt-1">Kayıtlı iptal geçmişi</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEKMELİ HAREKET GEÇMİŞİ -->
+        <div class="card border-0 shadow-sm rounded-4 bg-white">
+            <div class="card-header bg-white border-0 pt-3 pb-0">
+                <ul class="nav nav-pills nav-fill gap-2 p-2 rounded-3" id="profilTabs" style="background-color: var(--manu-bg);" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-2" data-bs-toggle="pill" data-bs-target="#tabGelecek" type="button">
+                            <i class="fa-regular fa-calendar-check me-1"></i> Gelecek ({gelecekDersler.length})
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-2" data-bs-toggle="pill" data-bs-target="#tabTamamlanan" type="button">
+                            <i class="fa-solid fa-circle-check me-1"></i> Katıldığı ({tamamlananDersler.length})
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-2" data-bs-toggle="pill" data-bs-target="#tabIptaller" type="button">
+                            <i class="fa-solid fa-ban me-1"></i> İptaller ({uyeIptalleri.length})
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="card-body p-3 p-md-4">
+                <div class="tab-content">
+
+                    <!-- 1. GELECEK DERSLER -->
+                    <div class="tab-pane fade show active" id="tabGelecek">
+                        {gelecekDersler.length === 0 ? (
+                            <div class="alert alert-light border text-center text-muted py-4 mb-0">
+                                Takvimde planlı gelecek ders bulunmuyor.
+                            </div>
+                        ) : (
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light small text-muted text-uppercase">
+                                        <tr>
+                                            <th>Tarih</th>
+                                            <th>Saat</th>
+                                            <th>Ders Türü</th>
+                                            <th>Eğitmen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {gelecekDersler.map(d => {
+                                            const eg = egitmenBul(d.notlar, d.alanId);
+                                            return (
+                                                <tr>
+                                                    <td class="fw-bold text-dark">{tarihTr(d.tarih)}</td>
+                                                    <td><span class="badge bg-light text-dark border">{d.saat}</span></td>
+                                                    <td class="small">{d.rezervasyonTuru}</td>
+                                                    <td><span class="badge text-white fw-normal" style={`background-color: ${eg.renk};`}>{eg.ad}</span></td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    <!-- 2. KATILDIĞI (TAMAMLANAN) DERSLER -->
+                    <div class="tab-pane fade" id="tabTamamlanan">
+                        {tamamlananDersler.length === 0 ? (
+                            <div class="alert alert-light border text-center text-muted py-4 mb-0">
+                                Henüz tamamlanan ders kaydı bulunmuyor.
+                            </div>
+                        ) : (
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light small text-muted text-uppercase">
+                                        <tr>
+                                            <th>Tarih</th>
+                                            <th>Saat</th>
+                                            <th>Ders Türü</th>
+                                            <th>Eğitmen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {tamamlananDersler.map(d => {
+                                            const eg = egitmenBul(d.notlar, d.alanId);
+                                            return (
+                                                <tr>
+                                                    <td class="fw-bold text-dark">{tarihTr(d.tarih)}</td>
+                                                    <td><span class="badge bg-light text-dark border">{d.saat}</span></td>
+                                                    <td class="small">{d.rezervasyonTuru}</td>
+                                                    <td><span class="badge text-white fw-normal" style={`background-color: ${eg.renk};`}>{eg.ad}</span></td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    <!-- 3. İPTAL GEÇMİŞİ -->
+                    <div class="tab-pane fade" id="tabIptaller">
+                        {uyeIptalleri.length === 0 ? (
+                            <div class="alert alert-light border text-center text-muted py-4 mb-0">
+                                Kayıtlı iptal geçmişi bulunmuyor.
+                            </div>
+                        ) : (
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light small text-muted text-uppercase">
+                                        <tr>
+                                            <th>Ders Tarihi / Saat</th>
+                                            <th>Ders Türü</th>
+                                            <th>Eğitmen</th>
+                                            <th>Sonuç</th>
+                                            <th>İptal Zamanı</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {uyeIptalleri.map(ip => {
+                                            const eg = egitmenBul(ip.egitmen, null);
+                                            const rozet = islemRozet(ip.islemTuru);
+                                            return (
+                                                <tr>
+                                                    <td class="fw-bold text-dark">{tarihTr(ip.tarih)} <span class="badge bg-light text-dark border ms-1">{ip.saat}</span></td>
+                                                    <td class="small">{ip.rezervasyonTuru || '-'}</td>
+                                                    <td><span class="badge text-white fw-normal" style={`background-color: ${eg.renk};`}>{eg.ad}</span></td>
+                                                    <td>
+                                                        <span class={`badge ${rozet.cls}`}>{rozet.metin}</span>
+                                                        {ip.telafiTarih && (
+                                                            <small class="d-block text-muted mt-1" style="font-size: 0.72rem;">Telafi: {tarihTr(ip.telafiTarih)}</small>
+                                                        )}
+                                                    </td>
+                                                    <td class="small text-muted">
+                                                        {zamanDamgasiTr(ip.iptalTarihi)}
+                                                        {ip.iptalEden && <small class="d-block opacity-75">({ip.iptalEden})</small>}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- PROFİL İÇİNDEN ÜYE DÜZENLEME MODALI -->
+    <div class="modal fade" id="uyeDuzenleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header text-white rounded-top-4" style="background-color: var(--manu-teal);">
+                    <h6 class="modal-title fw-bold"><i class="fa-solid fa-user-pen me-2" style="color: var(--manu-gold);"></i>Üye Bilgilerini Düzenle</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="uyeDuzenleForm">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted">Ad Soyad</label>
+                            <input type="text" id="editAdSoyad" class="form-control fw-bold" value={duzgunAd} required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-7">
+                                <label class="form-label small fw-bold text-muted">Telefon</label>
+                                <input type="tel" id="editTelefon" class="form-control fw-bold" value={uye.telefon || ''} placeholder="05XX XXX XX XX" maxlength="14">
+                            </div>
+                            <div class="col-5">
+                                <label class="form-label small fw-bold text-muted">Cinsiyet</label>
+                                <select id="editCinsiyet" class="form-select fw-bold">
+                                    <option value="kadin" selected={cinsiyet === 'kadin'}>Kadın</option>
+                                    <option value="erkek" selected={cinsiyet === 'erkek'}>Erkek</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-4">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Toplam Paket</label>
+                                <input type="number" id="editToplamDers" class="form-control fw-bold text-center" min="0" value={uye.toplamDers || 0} required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Kalan Ders</label>
+                                <input type="number" id="editKalanDers" class="form-control fw-bold text-center" min="0" value={uye.kalanDers || 0} required>
+                            </div>
+                        </div>
+                        <button type="submit" id="uyeKaydetBtn" class="btn text-white w-100 fw-bold py-2 shadow-sm" style="background-color: var(--manu-gold);">
+                            <i class="fa-solid fa-save me-1"></i> DEĞİŞİKLİKLERİ KAYDET
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</Layout>
+
+<script is:inline define:vars={{ uyeId: uye.id }}>
+    function telefonMaskele(deger) {
+        let val = (deger || '').replace(/\D/g, '');
+        if (val.length > 0 && val[0] !== '0') val = '0' + val;
+        if (val.length > 1 && val[1] !== '5') val = val.substring(0, 1) + '5' + val.substring(2);
+        let res = '';
+        if (val.length > 0) res += val.substring(0, 4);
+        if (val.length > 4) res += ' ' + val.substring(4, 7);
+        if (val.length > 7) res += ' ' + val.substring(7, 9);
+        if (val.length > 9) res += ' ' + val.substring(9, 11);
+        return res;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const telInput = document.getElementById('editTelefon');
+        if (telInput) {
+            telInput.addEventListener('input', (e) => {
+                e.target.value = telefonMaskele(e.target.value);
+            });
+        }
+
+        // Sağlık & Eğitmen Notu Hızlı Kaydet
+        const notBtn = document.getElementById('notKaydetBtn');
+        const notInput = document.getElementById('saglikNotuInput');
+        const notDurum = document.getElementById('notDurumMetni');
+
+        if (notBtn && notInput) {
+            notBtn.addEventListener('click', async () => {
+                notBtn.disabled = true;
+                notBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Kaydediliyor...';
+                try {
+                    const res = await fetch('/api/rehber', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: uyeId, notlar: notInput.value })
+                    });
+                    if (res.ok) {
+                        notDurum.className = 'text-success fw-bold d-block mt-1';
+                        notDurum.innerText = 'Not kaydedildi ✓';
+                        setTimeout(() => { notDurum.innerText = ''; }, 2500);
+                    } else {
+                        alert('Not kaydedilemedi.');
+                    }
+                } catch (err) {
+                    alert('Sunucu bağlantı hatası.');
+                } finally {
+                    notBtn.disabled = false;
+                    notBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Notu Kaydet';
+                }
+            });
+        }
+
+        // Profil Düzenle Modal Formu
+        const form = document.getElementById('uyeDuzenleForm');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('uyeKaydetBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> KAYDEDİLİYOR...';
+                try {
+                    const res = await fetch('/api/rehber', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: uyeId,
+                            adSoyad: document.getElementById('editAdSoyad').value.trim(),
+                            telefon: document.getElementById('editTelefon').value.trim(),
+                            cinsiyet: document.getElementById('editCinsiyet').value,
+                            toplamDers: parseInt(document.getElementById('editToplamDers').value, 10) || 0,
+                            kalanDers: parseInt(document.getElementById('editKalanDers').value, 10) || 0
+                        })
+                    });
+                    if (res.ok) {
+                        window.location.reload();
+                    } else {
+                        const data = await res.json();
+                        alert(data.error || 'Güncelleme başarısız.');
+                    }
+                } catch (err) {
+                    alert('Sunucu bağlantı hatası.');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-save me-1"></i> DEĞİŞİKLİKLERİ KAYDET';
+                }
+            });
+        }
+    });
+</script>

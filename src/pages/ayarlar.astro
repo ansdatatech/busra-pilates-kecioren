@@ -1,0 +1,654 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { decodeJwt } from 'jose';
+
+const token = Astro.cookies.get('auth_token')?.value;
+
+if (!token) {
+    return Astro.redirect('/');
+}
+
+let rol = '';
+let aktifRol = '';
+let aktifKullanici = '';
+
+try {
+    const decoded = decodeJwt(token);
+    rol = decoded.rol as string;
+    aktifRol = decoded.rol as string;
+    aktifKullanici = decoded.kullaniciAdi as string;
+} catch (error) {
+    return Astro.redirect('/');
+}
+---
+
+<Layout title="Ayarlar ve İzinler | Büşra Pilates Center Keçiören">
+    <div id="authVerileri" data-kullanici={aktifKullanici} data-rol={aktifRol} class="d-none"></div>
+
+    <div class="text-white p-2 d-flex justify-content-between align-items-center" style="background-color: #3d2838; border-bottom: 3px solid var(--manu-gold);">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span class="fw-bold" style="color: #FDF5FA;"><i class="fa-solid fa-gear me-2" style="color: var(--manu-gold);"></i> STÜDYO AYARLARI VE YETKİLENDİRME</span>
+            <a href="/" class="btn btn-sm btn-outline-light"><i class="fa-solid fa-arrow-left me-1"></i> Panele Dön</a>
+        </div>
+    </div>
+
+    <div class="container mt-4 mb-5">
+
+        <!-- EĞİTMEN YÖNETİMİ (SADECE YÖNETİCİ) -->
+        {rol === 'yonetici' && (
+            <div class="card shadow-sm border-0 rounded-4 mb-4" style="border-top: 4px solid var(--manu-teal) !important;">
+                <div class="card-header bg-white border-0 pt-4 pb-2">
+                    <h5 class="fw-bold m-0" style="color: var(--manu-teal);"><i class="fa-solid fa-chalkboard-user me-2" style="color: var(--manu-gold);"></i>Eğitmen Yönetimi & Çalışma Saatleri</h5>
+                    <small class="text-muted">Yeni eğitmen ekleyebilir, vardiya saatlerini değiştirebilir veya ayrılan eğitmeni geçmiş kayıtları bozmadan pasife alabilirsiniz.</small>
+                </div>
+                <div class="card-body">
+                    <form id="egitmenEkleFormu" class="row g-2 align-items-end mb-4 p-3 rounded-3 border" style="background-color: #FDF5FA;">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted mb-1">Eğitmen Adı</label>
+                            <input type="text" id="yeniEgitmenAd" class="form-control form-control-sm border-secondary fw-bold" placeholder="Örn: Zeynep Hoca" required>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fw-bold small text-muted mb-1">Başlangıç</label>
+                            <input type="number" id="yeniEgitmenBas" class="form-control form-control-sm border-secondary fw-bold text-center" min="6" max="22" value="9" required>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fw-bold small text-muted mb-1">Bitiş</label>
+                            <input type="number" id="yeniEgitmenBit" class="form-control form-control-sm border-secondary fw-bold text-center" min="7" max="23" value="18" required>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fw-bold small text-muted mb-1">Sütun Rengi</label>
+                            <input type="color" id="yeniEgitmenRenk" class="form-control form-control-sm form-control-color w-100 border-secondary" value="#6B4C63">
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <button type="submit" id="egitmenEkleBtn" class="btn btn-sm text-white w-100 fw-bold py-2 shadow-sm" style="background-color: var(--manu-teal);">
+                                <i class="fa-solid fa-plus me-1"></i> Ekle
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light text-muted small text-uppercase">
+                                <tr>
+                                    <th class="ps-3">Eğitmen</th>
+                                    <th class="text-center" style="width: 110px;">Başlangıç</th>
+                                    <th class="text-center" style="width: 110px;">Bitiş</th>
+                                    <th class="text-center" style="width: 80px;">Renk</th>
+                                    <th class="text-center" style="width: 100px;">Durum</th>
+                                    <th class="text-end pe-3" style="width: 180px;">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="egitmenTabloGovdesi">
+                                <tr><td colspan="6" class="text-center text-muted small py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i>Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        <div class="row">
+            <div class="col-md-5 mb-4">
+                <div class="card shadow-sm border-0 rounded-4 mb-4" style="border-left: 4px solid var(--manu-teal) !important;">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold" style="color: var(--manu-teal);"><i class="fa-solid fa-user-plus me-2"></i>Yeni Hesap Ekle</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="personelFormu">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Yetki Rolü</label>
+                                <select id="pRol" class="form-select border-secondary fw-bold text-dark">
+                                    <option value="sekreter">Sekreter (Ön Büro / Takvim Yönetimi)</option>
+                                    <option value="egitmen">Eğitmen (Sadece Kendi Dersleri)</option>
+                                    <option value="yonetici">Yönetici (Tam Yetki)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Kullanıcı Adı (Sisteme Giriş İçin)</label>
+                                <input type="text" id="pKullaniciAdi" class="form-control" placeholder="Örn: ilayda" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Görünür İsim (Ad Soyad)</label>
+                                <input type="text" id="pAdSoyad" class="form-control" placeholder="Örn: İlayda Hoca" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label fw-bold small text-muted">Geçici Şifre (En az 6 karakter içermeli!)</label>
+                                <input type="password" id="pSifre" class="form-control" placeholder="En az 6 karakter" required minlength="6">
+                            </div>
+                            <button type="submit" id="pKaydetBtn" class="btn text-white w-100 fw-bold shadow-sm py-2" style="background-color: var(--manu-teal);">HESAP OLUŞTUR</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 rounded-4" style="border-left: 4px solid var(--manu-gold) !important;">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold" style="color: var(--manu-gold);"><i class="fa-solid fa-clock me-2"></i>Stüdyo Çalışma Saatleri</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="saatAyarlariFormu">
+                            <input type="hidden" id="ayarId">
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label class="form-label fw-bold small text-muted">Açılış Saati</label>
+                                    <input type="number" id="baslangicSaati" class="form-control fw-bold border-secondary" min="0" max="23" required>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label fw-bold small text-muted">Kapanış Saati</label>
+                                    <input type="number" id="bitisSaati" class="form-control fw-bold border-secondary" min="1" max="24" required>
+                                </div>
+                            </div>
+                            <button type="submit" id="saatKaydetBtn" class="btn text-white w-100 fw-bold shadow-sm py-2" style="background-color: var(--manu-gold);">
+                                <i class="fa-solid fa-save me-2"></i>SAATLERİ KAYDET
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-7 mb-4">
+                
+                <div class="card shadow-sm border-0 rounded-4 mb-4" style="background-color: #fff8fc; border-top: 4px solid var(--manu-gold) !important;">
+                    <div class="card-header bg-transparent border-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold m-0" style="color: var(--manu-teal);"><i class="fa-solid fa-plane-departure me-2" style="color: var(--manu-gold);"></i>Tatil & İzin Yönetimi</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="izinFormu" class="row g-2 align-items-end mb-4">
+                            <div class="col-12 mb-2">
+                                <div class="btn-group btn-group-sm w-100 shadow-sm" role="group">
+                                    <input type="radio" class="btn-check" name="izinTipi" id="tipTarih" value="tarih" checked autocomplete="off">
+                                    <label class="btn btn-outline-secondary text-dark fw-bold py-2" for="tipTarih">Tarih / Aralık</label>
+
+                                    <input type="radio" class="btn-check" name="izinTipi" id="tipSaatlik" value="saatlik" autocomplete="off">
+                                    <label class="btn btn-outline-secondary text-dark fw-bold py-2" for="tipSaatlik">Saatlik İzin</label>
+
+                                    <input type="radio" class="btn-check" name="izinTipi" id="tipRutin" value="rutin" autocomplete="off">
+                                    <label class="btn btn-outline-secondary text-dark fw-bold py-2" for="tipRutin">Her Hafta (Rutin)</label>
+                                </div>
+                            </div>
+                            
+                            <!-- Tarih / Aralık Alanı -->
+                            <div class="col-md-4" id="tarihAlani">
+                                <label class="form-label fw-bold small text-muted">Tarih</label>
+                                <input type="date" id="izinTarihi" class="form-control form-control-sm" style="border-color: var(--manu-gold);" required>
+                            </div>
+                            <div class="col-md-4" id="tarihBitisAlani">
+                                <label class="form-label fw-bold small text-muted">Bitiş (Opsiyonel)</label>
+                                <input type="date" id="izinBitisTarihi" class="form-control form-control-sm" style="border-color: var(--manu-gold);">
+                            </div>
+
+                            <!-- Saatlik İzin Alanı -->
+                            <div class="col-md-4 d-none" id="saatlikBasAlani">
+                                <label class="form-label fw-bold small text-muted">Başlangıç Saati</label>
+                                <select id="izinSaatBas" class="form-select form-select-sm" style="border-color: var(--manu-gold);"></select>
+                            </div>
+                            <div class="col-md-4 d-none" id="saatlikBitAlani">
+                                <label class="form-label fw-bold small text-muted">Bitiş Saati</label>
+                                <select id="izinSaatBit" class="form-select form-select-sm" style="border-color: var(--manu-gold);"></select>
+                            </div>
+                            
+                            <!-- Rutin Seçim Alanı -->
+                            <div class="col-md-8 d-none" id="rutinAlani">
+                                <label class="form-label fw-bold small text-muted">Hangi Gün?</label>
+                                <select id="izinGun" class="form-select form-select-sm" style="border-color: var(--manu-gold);">
+                                    <option value="1">Pazartesi</option>
+                                    <option value="2">Salı</option>
+                                    <option value="3">Çarşamba</option>
+                                    <option value="4">Perşembe</option>
+                                    <option value="5">Cuma</option>
+                                    <option value="6">Cumartesi</option>
+                                    <option value="0">Pazar</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-5 mt-2">
+                                <label class="form-label fw-bold small text-muted">Kim İzinde?</label>
+                                <select id="izinKapsam" class="form-select form-select-sm" style="border-color: var(--manu-gold);">
+                                    <option value="TUM">Tüm Stüdyo Kapalı</option>
+                                </select>
+                            </div>
+                            <div class="col-md-5 mt-2">
+                                <label class="form-label fw-bold small text-muted">Sebep / Not</label>
+                                <input type="text" id="izinSebep" class="form-control form-control-sm" style="border-color: var(--manu-gold);" placeholder="Doktor, Haftalık İzin..." required>
+                            </div>
+                            <div class="col-md-2 mt-2">
+                                <button type="submit" id="izinKaydetBtn" class="btn btn-sm text-white w-100 fw-bold shadow-sm py-2" style="background-color: var(--manu-gold);" title="İzin Ekle"><i class="fa-solid fa-plus"></i></button>
+                            </div>
+                        </form>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th class="text-muted small">Tip / Zaman</th>
+                                        <th class="text-muted small">İzinli Kişi</th>
+                                        <th class="text-muted small">Sebep</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="izinTabloGovdesi">
+                                    <tr><td colspan="4" class="text-center text-muted small py-2"><i class="fa-solid fa-spinner fa-spin me-2"></i>Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ROL BAZLI SİSTEM KULLANICILARI ALANI -->
+                {rol === 'yonetici' ? (
+                    <div class="card shadow-sm border-0 rounded-4">
+                        <div class="card-header bg-white border-0 pt-4 pb-0">
+                            <h5 class="fw-bold" style="color: var(--manu-teal);"><i class="fa-solid fa-users-gear me-2"></i>Sistem Kullanıcıları</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle m-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="ps-4">İsim Soyisim</th>
+                                            <th>Kullanıcı Adı</th>
+                                            <th>Rol / Yetki</th>
+                                            <th class="text-end pe-4">İşlem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="personelTabloGövdesi">
+                                        <tr><td colspan="4" class="text-center py-4 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i> Yükleniyor...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div class="card shadow-sm border-0 rounded-4" style="background-color: #f8f9fa; border-left: 4px solid #6c757d !important;">
+                        <div class="card-body text-center p-5">
+                            <i class="fa-solid fa-user-shield fs-1 text-muted mb-3" style="opacity: 0.3;"></i>
+                            <h5 class="fw-bold" style="color: var(--manu-teal);">Kısıtlı Alan</h5>
+                            <p class="text-muted small mb-0">Sistem kullanıcılarını görüntüleme, şifre belirleme ve yetki düzenleme işlemleri sadece <strong class="text-dark">Yönetici</strong> hesapları tarafından yapılabilir.</p>
+                        </div>
+                    </div>
+                )}
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- YÖNETİCİ ŞİFRE SIFIRLAMA MODALI -->
+    <div class="modal fade" id="adminSifreModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header rounded-top-4" style="background-color: var(--manu-gold);">
+                    <h6 class="modal-title fw-bold text-white"><i class="fa-solid fa-unlock-keyhole me-2"></i>Şifre Sıfırla</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="small text-muted mb-3"><strong><span id="sifirlanacakKisi"></span></strong> adlı kullanıcının şifresini yeniliyorsunuz.</p>
+                    <form id="adminSifreFormu">
+                        <input type="hidden" id="sifirlanacakId">
+                        <div class="mb-3">
+                            <input type="password" id="yeniSifreAdmin" class="form-control" placeholder="Yeni Şifre Belirleyin" required minlength="6">
+                        </div>
+                        <button type="submit" id="adminSifreKaydetBtn" class="btn text-white w-100 fw-bold" style="background-color: var(--manu-teal);">ŞİFREYİ GÜNCELLE</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</Layout>
+
+<script is:inline>
+    let tumEgitmenler = [];
+
+    document.addEventListener("DOMContentLoaded", async function() {
+        window.aktifRol = document.getElementById('authVerileri').getAttribute('data-rol');
+
+        // Saatlik izin select kutularını doldur (08:00 - 23:00)
+        const saatSecenekleri = [];
+        for (let s = 8; s <= 23; s++) {
+            const str = String(s).padStart(2, '0') + ':00';
+            saatSecenekleri.push(`<option value="${str}">${str}</option>`);
+        }
+        document.getElementById('izinSaatBas').innerHTML = saatSecenekleri.join('');
+        document.getElementById('izinSaatBit').innerHTML = saatSecenekleri.join('');
+        document.getElementById('izinSaatBas').value = '12:00';
+        document.getElementById('izinSaatBit').value = '14:00';
+
+        await egitmenleriGetir();
+        ayarlariGetir();
+        izinleriGetir();
+        if (window.aktifRol === 'yonetici') personelleriGetir();
+
+        // İzin tipi geçişleri
+        document.querySelectorAll('input[name="izinTipi"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                document.getElementById('tarihAlani').classList.add('d-none');
+                document.getElementById('tarihBitisAlani').classList.add('d-none');
+                document.getElementById('saatlikBasAlani').classList.add('d-none');
+                document.getElementById('saatlikBitAlani').classList.add('d-none');
+                document.getElementById('rutinAlani').classList.add('d-none');
+                document.getElementById('izinTarihi').required = false;
+
+                if (this.value === 'tarih') {
+                    document.getElementById('tarihAlani').classList.remove('d-none');
+                    document.getElementById('tarihBitisAlani').classList.remove('d-none');
+                    document.getElementById('izinTarihi').required = true;
+                } else if (this.value === 'saatlik') {
+                    document.getElementById('tarihAlani').classList.remove('d-none');
+                    document.getElementById('saatlikBasAlani').classList.remove('d-none');
+                    document.getElementById('saatlikBitAlani').classList.remove('d-none');
+                    document.getElementById('izinTarihi').required = true;
+                } else {
+                    document.getElementById('rutinAlani').classList.remove('d-none');
+                }
+            });
+        });
+
+        // Yeni Eğitmen Ekleme
+        const egitmenForm = document.getElementById('egitmenEkleFormu');
+        if (egitmenForm) {
+            egitmenForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('egitmenEkleBtn');
+                btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                try {
+                    const res = await fetch('/api/egitmenler', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            adSoyad: document.getElementById('yeniEgitmenAd').value,
+                            baslangicSaati: document.getElementById('yeniEgitmenBas').value,
+                            bitisSaati: document.getElementById('yeniEgitmenBit').value,
+                            renk: document.getElementById('yeniEgitmenRenk').value
+                        })
+                    });
+                    if (res.ok) {
+                        egitmenForm.reset();
+                        document.getElementById('yeniEgitmenBas').value = 9;
+                        document.getElementById('yeniEgitmenBit').value = 18;
+                        document.getElementById('yeniEgitmenRenk').value = '#6B4C63';
+                        await egitmenleriGetir();
+                        izinleriGetir();
+                    } else {
+                        alert((await res.json()).error || "Eğitmen eklenemedi.");
+                    }
+                } catch { alert("Sunucu hatası."); }
+                finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Ekle'; }
+            });
+        }
+
+        const personelFormu = document.getElementById('personelFormu');
+        if (personelFormu) {
+            personelFormu.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (window.aktifRol !== 'yonetici') { alert("Yetkiniz yok."); return; }
+                const btn = document.getElementById('pKaydetBtn');
+                btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> OLUŞTURULUYOR...';
+                try {
+                    const response = await fetch('/api/kullanici', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            rol: document.getElementById('pRol').value,
+                            kullaniciAdi: document.getElementById('pKullaniciAdi').value,
+                            adSoyad: document.getElementById('pAdSoyad').value,
+                            sifre: document.getElementById('pSifre').value
+                        })
+                    });
+                    if (response.ok) { personelFormu.reset(); personelleriGetir(); alert("Hesap oluşturuldu!"); }
+                    else alert((await response.json()).error || "Hata oluştu.");
+                } catch { alert("Sunucuya ulaşılamadı."); }
+                finally { btn.disabled = false; btn.innerHTML = 'HESAP OLUŞTUR'; }
+            });
+        }
+
+        const adminSifreFormu = document.getElementById('adminSifreFormu');
+        if (adminSifreFormu) {
+            adminSifreFormu.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('adminSifreKaydetBtn');
+                btn.innerHTML = 'BEKLEYİN...'; btn.disabled = true;
+                try {
+                    const res = await fetch('/api/kullanici', {
+                        method: 'PUT', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            id: document.getElementById('sifirlanacakId').value,
+                            yeniSifre: document.getElementById('yeniSifreAdmin').value
+                        })
+                    });
+                    if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('adminSifreModal')).hide(); alert("Şifre sıfırlandı!"); }
+                    else alert("Hata oluştu.");
+                } catch { alert("Sunucu hatası."); }
+                finally { btn.innerHTML = 'ŞİFREYİ GÜNCELLE'; btn.disabled = false; }
+            });
+        }
+
+        document.getElementById('saatAyarlariFormu').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('saatKaydetBtn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>KAYDEDİLİYOR...'; btn.disabled = true;
+            try {
+                const res = await fetch('/api/ayarlar-api', {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id: document.getElementById('ayarId').value,
+                        baslangicSaati: document.getElementById('baslangicSaati').value,
+                        bitisSaati: document.getElementById('bitisSaati').value,
+                        alanSayisi: tumEgitmenler.filter(e => e.aktif).length || 3
+                    })
+                });
+                if(res.ok) alert("Saatler güncellendi!");
+                else alert("Hata oluştu.");
+            } catch { alert("Sunucu hatası"); }
+            finally { btn.innerHTML = '<i class="fa-solid fa-save me-2"></i>SAATLERİ KAYDET'; btn.disabled = false; }
+        });
+        
+        // AKILLI İZİN EKLEME (Tarih / Aralık / Saatlik / Rutin)
+        document.getElementById('izinFormu').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            let tip = document.querySelector('input[name="izinTipi"]:checked').value;
+            let deger = '';
+            
+            if (tip === 'tarih') {
+                const bas = document.getElementById('izinTarihi').value;
+                const bit = document.getElementById('izinBitisTarihi').value;
+                if (bit && bit >= bas) { tip = 'aralik'; deger = `${bas}_${bit}`; }
+                else deger = bas;
+            } else if (tip === 'saatlik') {
+                const tarih = document.getElementById('izinTarihi').value;
+                const sBas = document.getElementById('izinSaatBas').value;
+                const sBit = document.getElementById('izinSaatBit').value;
+                if (sBit <= sBas) { alert("Bitiş saati başlangıç saatinden büyük olmalıdır."); return; }
+                deger = `${tarih}_${sBas}_${sBit}`;
+            } else {
+                deger = document.getElementById('izinGun').value;
+            }
+
+            const btn = document.getElementById('izinKaydetBtn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/izinler', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ tip, deger, kapsam: document.getElementById('izinKapsam').value, sebep: document.getElementById('izinSebep').value })
+                });
+                if(res.ok) { 
+                    document.getElementById('izinSebep').value = ""; 
+                    document.getElementById('izinTarihi').value = ""; 
+                    document.getElementById('izinBitisTarihi').value = ""; 
+                    izinleriGetir(); 
+                } else alert("Hata oluştu.");
+            } catch { alert("Sunucu hatası."); }
+            finally { btn.innerHTML = '<i class="fa-solid fa-plus"></i>'; btn.disabled = false; }
+        });
+    });
+
+    async function egitmenleriGetir() {
+        try {
+            const res = await fetch('/api/egitmenler');
+            if (!res.ok) return;
+            tumEgitmenler = await res.json();
+
+            // İzin kapsam select'ini dinamik doldur
+            const kapsamSelect = document.getElementById('izinKapsam');
+            kapsamSelect.innerHTML = '<option value="TUM">Tüm Stüdyo Kapalı</option>' +
+                tumEgitmenler.filter(e => e.aktif).map(e => `<option value="${e.anahtar}">${e.adSoyad}</option>`).join('');
+
+            const tbody = document.getElementById('egitmenTabloGovdesi');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            tumEgitmenler.forEach(e => {
+                const durumRozet = e.aktif
+                    ? '<span class="badge bg-success">Aktif</span>'
+                    : '<span class="badge bg-secondary">Pasif</span>';
+                const toggleBtn = e.aktif
+                    ? `<button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="egitmenDurumDegistir(${e.id}, false)" title="Pasife Al"><i class="fa-solid fa-eye-slash"></i></button>`
+                    : `<button class="btn btn-sm btn-outline-success py-0 px-2" onclick="egitmenDurumDegistir(${e.id}, true)" title="Aktif Et"><i class="fa-solid fa-eye"></i></button>`;
+
+                tbody.innerHTML += `
+                    <tr class="${e.aktif ? '' : 'opacity-50'}">
+                        <td class="ps-3 fw-bold text-dark">${e.adSoyad} <small class="text-muted fw-normal">(@${e.anahtar})</small></td>
+                        <td class="text-center"><input type="number" id="egBas_${e.id}" class="form-control form-control-sm text-center fw-bold" min="6" max="22" value="${e.baslangicSaati}"></td>
+                        <td class="text-center"><input type="number" id="egBit_${e.id}" class="form-control form-control-sm text-center fw-bold" min="7" max="23" value="${e.bitisSaati}"></td>
+                        <td class="text-center"><input type="color" id="egRenk_${e.id}" class="form-control form-control-sm form-control-color mx-auto" value="${e.renk}"></td>
+                        <td class="text-center">${durumRozet}</td>
+                        <td class="text-end pe-3">
+                            <button class="btn btn-sm text-white py-0 px-2 me-1" style="background-color: var(--manu-teal);" onclick="egitmenGuncelle(${e.id})" title="Saat & Rengi Kaydet"><i class="fa-solid fa-save"></i></button>
+                            ${toggleBtn}
+                        </td>
+                    </tr>`;
+            });
+        } catch (err) {}
+    }
+
+    window.egitmenGuncelle = async function(id) {
+        const res = await fetch('/api/egitmenler', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id,
+                baslangicSaati: document.getElementById(`egBas_${id}`).value,
+                bitisSaati: document.getElementById(`egBit_${id}`).value,
+                renk: document.getElementById(`egRenk_${id}`).value
+            })
+        });
+        if (res.ok) alert("Eğitmen bilgileri güncellendi!");
+        else alert("Güncellenemedi.");
+    };
+
+    window.egitmenDurumDegistir = async function(id, yeniDurum) {
+        const mesaj = yeniDurum ? "Bu eğitmeni tekrar aktif etmek istiyor musunuz?" : "Bu eğitmeni pasife almak istiyor musunuz? (Geçmiş dersleri ve istatistikleri korunur.)";
+        if (!confirm(mesaj)) return;
+        const res = await fetch('/api/egitmenler', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, aktif: yeniDurum })
+        });
+        if (res.ok) { await egitmenleriGetir(); izinleriGetir(); }
+    };
+
+    async function izinleriGetir() {
+        const tbody = document.getElementById('izinTabloGovdesi');
+        try {
+            const res = await fetch('/api/izinler');
+            const izinler = await res.json();
+            tbody.innerHTML = '';
+
+            if(izinler.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted small py-2">Sistemde kayıtlı izin/tatil günü bulunmuyor.</td></tr>';
+                return;
+            }
+
+            const gunIsimleri = ["Her Pazar", "Her Pazartesi", "Her Salı", "Her Çarşamba", "Her Perşembe", "Her Cuma", "Her Cumartesi"];
+            const kisiIsimleri = { "TUM": "Tüm Stüdyo Kapalı" };
+            tumEgitmenler.forEach(e => { kisiIsimleri[e.anahtar] = e.adSoyad; });
+
+            izinler.forEach(iz => {
+                let zamanGosterim = '';
+                if (iz.tip === 'tarih') {
+                    zamanGosterim = `<span class="badge bg-secondary">${iz.deger}</span>`;
+                } else if (iz.tip === 'aralik') {
+                    const [bas, bit] = iz.deger.split('_');
+                    zamanGosterim = `<span class="badge bg-info text-dark">${bas} <i class="fa-solid fa-arrow-right mx-1"></i> ${bit}</span>`;
+                } else if (iz.tip === 'saatlik') {
+                    const [tarih, sBas, sBit] = iz.deger.split('_');
+                    zamanGosterim = `<span class="badge bg-warning text-dark">${tarih} (${sBas}-${sBit})</span>`;
+                } else {
+                    zamanGosterim = `<span class="badge" style="background-color: var(--manu-teal);">${gunIsimleri[iz.deger]}</span>`;
+                }
+
+                let kapsamGosterim = `<span class="fw-bold" style="color: var(--manu-teal);">${kisiIsimleri[iz.kapsam] || iz.kapsam}</span>`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${zamanGosterim}</td>
+                        <td>${kapsamGosterim}</td>
+                        <td class="text-muted small">${iz.sebep}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-danger shadow-sm py-0 px-2" onclick="izinSil(${iz.id})" title="İzni Kaldır"><i class="fa-solid fa-times"></i></button>
+                        </td>
+                    </tr>`;
+            });
+        } catch { tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger small">Yüklenemedi.</td></tr>'; }
+    }
+
+    window.izinSil = async function(id) {
+        if(confirm("Bu izin/tatil kuralını kaldırmak istediğinize emin misiniz?")) {
+            try {
+                const res = await fetch(`/api/izinler?id=${id}`, { method: 'DELETE' });
+                if(res.ok) izinleriGetir();
+            } catch { alert("Silinemedi."); }
+        }
+    };
+
+    async function ayarlariGetir() {
+        try {
+            const res = await fetch('/api/ayarlar-api');
+            if(res.ok) {
+                const data = await res.json();
+                document.getElementById('ayarId').value = data.id;
+                document.getElementById('baslangicSaati').value = data.baslangicSaati;
+                document.getElementById('bitisSaati').value = data.bitisSaati;
+            }
+        } catch {}
+    }
+
+    async function personelleriGetir() {
+        const tbody = document.getElementById('personelTabloGövdesi');
+        if (!tbody) return;
+        try {
+            const response = await fetch('/api/kullanici');
+            const kullanicilar = await response.json();
+            tbody.innerHTML = '';
+            kullanicilar.forEach(k => {
+                let rolBadge = k.rol === 'yonetici' ? '<span class="badge bg-danger">Yönetici</span>' : 
+                               k.rol === 'sekreter' ? '<span class="badge bg-info text-dark">Sekreter</span>' : 
+                               '<span class="badge" style="background-color: var(--manu-teal);">Eğitmen</span>';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="ps-4 fw-bold text-dark">${k.adSoyad}</td>
+                    <td class="text-muted">@${k.kullaniciAdi}</td>
+                    <td>${rolBadge}</td>
+                    <td class="text-end pe-4">
+                        <button class="btn btn-sm btn-outline-warning me-1 shadow-sm" onclick="sifreSifirlaModalAc(${k.id}, '${k.adSoyad}')" title="Şifreyi Sıfırla"><i class="fa-solid fa-key"></i></button>
+                        <button class="btn btn-sm btn-outline-danger shadow-sm" onclick="personelSil(${k.id}, '${k.adSoyad}')" title="Kullanıcıyı Sil"><i class="fa-solid fa-trash-can"></i></button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        } catch { tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Bağlantı hatası!</td></tr>'; }
+    }
+    
+    window.sifreSifirlaModalAc = function(id, adSoyad) {
+        document.getElementById('sifirlanacakId').value = id;
+        document.getElementById('sifirlanacakKisi').innerText = adSoyad;
+        document.getElementById('yeniSifreAdmin').value = '';
+        const modalEl = document.getElementById('adminSifreModal');
+        if(modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    };
+
+    window.personelSil = async function(id, adSoyad) {
+        if(confirm(`${adSoyad} adlı kişinin sisteme giriş yetkisini iptal etmek istediğinize emin misiniz?`)) {
+            try {
+                const response = await fetch(`/api/kullanici?id=${id}`, { method: 'DELETE' });
+                if (response.ok) personelleriGetir();
+                else alert((await response.json()).error || "Silinemedi.");
+            } catch { alert("Hata oluştu."); }
+        }
+    };
+</script>

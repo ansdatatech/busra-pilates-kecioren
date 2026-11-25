@@ -1,0 +1,1720 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { decodeJwt } from 'jose';
+
+const token = Astro.cookies.get('auth_token')?.value;
+const isLoggedIn = !!token;
+
+let rol = '';
+let aktifRol = ''; 
+let aktifKullanici = '';
+
+if (token) {
+    try {
+        const decoded = decodeJwt(token);
+        rol = decoded.rol as string;
+        aktifRol = decoded.rol as string; 
+        aktifKullanici = decoded.kullaniciAdi as string;
+    } catch (error) {}
+}
+---
+
+<Layout title="Büşra Pilates Center Keçiören | Randevu Sistemi">
+
+    <style is:global>
+        :root {
+            --manu-teal: #6B4C63;        /* Kurumsal Mürdüm */
+            --manu-teal-light: #9E6B8E;  /* Yumuşak Lila/Mürdüm */
+            --manu-gold: #E563B1;        /* Canlı Gül Pembe */
+            --manu-bg: #FDF5FA;          /* Çok Açık Pudra */
+        }
+        
+        .btn-manu { background-color: var(--manu-teal); color: white; border: none; }
+        .btn-manu:hover { background-color: #52384b; color: white; }
+        
+        select:disabled {
+            background-color: #e9ecef !important;
+            border-color: #ced4da !important;
+            color: #495057 !important;
+            opacity: 1;
+            cursor: not-allowed;
+        }
+        .gun-secim-btn:checked + label {
+            background-color: var(--manu-gold) !important;
+            border-color: var(--manu-gold) !important;
+            color: white !important;
+        }
+        #mesajMerkeziModal .nav-pills .nav-link.active {
+            background-color: var(--manu-teal) !important;
+            color: white !important;
+        }
+    </style>
+
+    {!isLoggedIn ? (
+        <div id="loginEkrani" class="position-fixed w-100 h-100 d-flex flex-column justify-content-center align-items-center" style="background-color: var(--manu-teal); z-index: 9999; top: 0; left: 0;">
+            <div class="card shadow-lg border-0 rounded-4 mb-3" style="width: 100%; max-width: 420px;">
+                <div class="card-body p-5 text-center">
+                    <img src="/logo.png" alt="Büşra Pilates Center Keçiören" style="max-height: 110px; width: auto;" class="mb-3">
+                    <h4 class="fw-bold mb-1" style="color: var(--manu-teal);">Büşra Pilates Center</h4>
+                    <p class="text-muted small mb-1 fw-semibold">Keçiören Şubesi</p>
+                    <p class="text-muted small fst-italic mb-3">per aspera ad astra</p>
+                    <form id="loginForm">
+                        <div class="form-floating mb-3 text-start">
+                            <input type="text" class="form-control fw-bold border-secondary" id="kullaniciAdi" placeholder="Kullanıcı Adı" required>
+                            <label for="kullaniciAdi"><i class="fa-solid fa-user text-muted me-1"></i> Kullanıcı Adı</label>
+                        </div>
+                        <div class="form-floating mb-4 text-start">
+                            <input type="password" class="form-control fw-bold border-secondary" id="sifre" placeholder="Şifre" required>
+                            <label for="sifre"><i class="fa-solid fa-lock text-muted me-1"></i> Şifre</label>
+                        </div>
+                        <button type="submit" id="loginBtn" class="btn btn-manu w-100 py-3 fw-bold fs-5 rounded-3 shadow-sm">GİRİŞ YAP</button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="text-center text-white-50 mt-3" style="opacity: 0.85;">
+                <small class="text-uppercase" style="letter-spacing: 1px; font-size: 0.7rem;">Yazılım ve Altyapı</small><br>
+                <div class="d-flex align-items-center justify-content-center mt-1 gap-2">
+                    <img src="/ans-logo.png" alt="ANS Yazılım" style="height: 24px;" onerror="this.style.display='none'">
+                    <span class="fw-bold text-white fs-6" style="letter-spacing: 0.5px;">ANS Yazılım & Veri Çözümleri</span>
+                </div>
+            </div>
+        </div>
+    ) : (
+        <div id="anaSistem" style="background-color: var(--manu-bg); min-height: 100vh;">
+            <div id="authVerileri" data-kullanici={aktifKullanici} data-rol={aktifRol} class="d-none"></div>
+
+            <div class="text-white p-2 d-flex justify-content-center align-items-center gap-3" style="background-color: #3d2838; border-bottom: 3px solid var(--manu-gold);">
+                <span class="badge text-white" style="background-color: var(--manu-gold);"><i class="fa-solid fa-sparkles me-1"></i> BÜŞRA PİLATES CENTER KEÇİÖREN</span>
+            </div>
+
+            <nav class="navbar navbar-dark shadow-sm" style="background-color: var(--manu-teal);">
+                <div class="container d-flex justify-content-between align-items-center">
+                    <div class="navbar-brand m-0 fw-bold fs-5 d-flex align-items-center" id="navbar-title">
+                        <div class="bg-white rounded p-1 px-2 me-2 d-flex align-items-center shadow-sm">
+                            <img src="/logo.png" alt="Büşra Pilates Center" style="max-height: 36px;">
+                        </div>
+                        <span class="d-none d-sm-inline">BÜŞRA PİLATES KEÇİÖREN</span>
+                    </div>
+                    <button type="button" id="cikisBtn" class="btn btn-outline-light btn-sm fw-bold border-2">
+                        <i class="fa-solid fa-power-off"></i> <span class="d-none d-md-inline">Çıkış</span>
+                    </button>
+                </div>
+            </nav>
+            
+            <div class="container mt-3">
+                <div class="d-flex flex-wrap justify-content-between align-items-center p-3 bg-white shadow-sm rounded-4 border-start border-4 gap-2 mb-4" style="border-color: var(--manu-gold) !important;">
+                    <div class="text-muted text-uppercase">
+                        <i class="fa-solid fa-user-tie me-1" style="color: var(--manu-teal);"></i> <strong>{aktifRol}:</strong> {aktifKullanici}
+                    </div>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <button type="button" id="mesajMerkeziBtn" class="btn btn-sm btn-success fw-bold shadow-sm" onclick="window.mesajMerkeziAc()">
+                            <i class="fa-brands fa-whatsapp me-1"></i> Mesaj Merkezi
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="new bootstrap.Modal(document.getElementById('sifreModal')).show()">
+                            <i class="fa-solid fa-key"></i> Şifre Değiştir
+                        </button>
+                        <a href="/ayarlar" class="btn btn-sm btn-secondary fw-bold shadow-sm">
+                            <i class="fa-solid fa-gear"></i> Ayarlar
+                        </a>
+                        {aktifRol === 'yonetici' && (
+                            <a href="/istatistik" class="btn btn-sm text-white fw-bold shadow-sm" style="background-color: var(--manu-teal-light);">
+                                <i class="fa-solid fa-chart-pie me-1"></i> İstatistik
+                            </a>
+                        )}
+                        <a href="/rehber" class="btn btn-sm btn-outline-dark fw-bold shadow-sm">
+                            <i class="fa-solid fa-address-book" style="color: var(--manu-gold);"></i> Üye Rehberi
+                        </a>
+                    </div>
+                </div>
+
+                <div class="date-navigator shadow-sm rounded-4 bg-white mb-3">
+                    <button type="button" id="dunBtn" class="date-btn text-muted"><i class="fa-solid fa-chevron-left"></i> Dün</button>
+                    <div style="position: relative; flex-grow: 1; text-align: center; cursor: pointer;" id="tarihSeciciAlan">
+                        <h3 class="current-date" style="color: var(--manu-teal); position: relative; z-index: 1;">
+                            <i class="fa-regular fa-calendar-days me-2"></i>
+                            <span id="gosterilenTarih"></span>
+                            <i class="fa-solid fa-caret-down ms-2" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                        </h3>
+                        <input type="date" id="gizliTakvim" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2; margin: 0; padding: 0;">
+                    </div>
+                    <button type="button" id="yarinBtn" class="date-btn text-muted">Yarın <i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+
+                <div class="table-container shadow-sm rounded-4 bg-white overflow-auto">
+                    <table class="table-matrix mb-0">
+                        <thead>
+                            <tr id="tabloBaslikKismi">
+                                <th style="width: 10%; background-color: #3d2838; color: white;"><i class="fa-regular fa-clock"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabloGövdesi"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="container mt-4 mb-3 pb-3">
+                <div class="d-flex flex-column justify-content-center align-items-center text-muted" style="opacity: 0.6;">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <img src="/ans-logo.png" alt="ANS Yazılım" style="height: 18px; filter: grayscale(100%);" onerror="this.style.display='none'">
+                        <span class="fw-bold" style="letter-spacing: 0.5px;">ANS Yazılım & Veri Çözümleri</span>
+                    </div>
+                    <small style="font-size: 0.75rem;">Pilates & Stüdyo Yönetim Altyapısı</small>
+                </div>
+            </div>
+            
+            <!-- YENİ DERS / PAKET KAYIT MODALI -->
+            <div class="modal fade" id="rezModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content rounded-4 border-0 shadow-lg">
+                        <div class="modal-header" style="background-color: var(--manu-teal); color: white; border-radius: 15px 15px 0 0;">
+                            <h5 class="modal-title fw-bold" id="rezModalBaslik"><i class="fa-solid fa-calendar-plus me-2" style="color: var(--manu-gold);"></i>Yeni Ders Kaydı</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <div class="alert py-2 mb-3 text-center" style="border-left: 5px solid var(--manu-gold); background-color: #FDF5FA;">
+                                <div class="fw-bold mb-1" style="color: var(--manu-teal);"><i class="fa-regular fa-calendar-check me-1"></i> <span id="modalTarihMetni"></span></div>
+                                <span class="badge me-1 shadow-sm" style="background-color: var(--manu-teal);" id="modalSaatBadge"></span> 
+                                <span class="badge shadow-sm" style="background-color: var(--manu-gold); color: #fff;" id="modalKortBadge"></span>
+                            </div>
+                            <form id="kayitFormu">
+                                <input type="hidden" id="editKayitId">
+                                <input type="hidden" id="kayitSaat">
+                                <input type="hidden" id="kayitKort">
+                                
+                                <!-- 1. ADIM: BRANŞ VE EĞİTMEN -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold text-muted small mb-1">1. Ders Branşı</label>
+                                        <select id="kayitBrans" class="form-select border-secondary fw-bold text-dark">
+                                            <option value="Reformer Pilates">Reformer Pilates</option>
+                                            <option value="Mat Pilates">Mat Pilates</option>
+                                            <option value="Hamile Pilatesi">Hamile Pilatesi</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label fw-bold text-muted small mb-1">Eğitmen</label>
+                                        <select id="kayitUzman" class="form-select bg-light fw-bold" style="border-color: var(--manu-teal);" disabled></select>
+                                    </div>
+                                </div>
+
+                                <!-- 2. ADIM: GRUP MU ÖZEL Mİ? -->
+                                <div class="mb-3 p-2 rounded-3 border" style="background-color: #FDF5FA; border-color: #e8cce0 !important;">
+                                    <label class="form-label fw-bold small mb-1 d-block" style="color: var(--manu-teal);">2. Ders Düzeni (Grup / Özel)</label>
+                                    <div class="btn-group w-100" role="group">
+                                        <input type="radio" class="btn-check" name="dersFormatiRadio" id="formatGrup" value="grup" checked autocomplete="off">
+                                        <label class="btn btn-sm btn-outline-secondary fw-bold py-2" for="formatGrup">
+                                            <i class="fa-solid fa-users me-1"></i> Grup Dersi (Max 4)
+                                        </label>
+
+                                        <input type="radio" class="btn-check" name="dersFormatiRadio" id="formatOzel" value="ozel" autocomplete="off">
+                                        <label class="btn btn-sm btn-outline-secondary fw-bold py-2" for="formatOzel">
+                                            <i class="fa-solid fa-user me-1"></i> Özel Ders (1 Kişi)
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- DERS TAŞIMA ALANI (Sadece Düzenleme Modunda Görünür) -->
+                                <div id="duzenleTasimaAlani" class="row g-2 mb-3 p-2 rounded-3 border d-none" style="background-color: #FDF5FA; border-color: #e8cce0 !important;">
+                                    <div class="col-7">
+                                        <label class="form-label fw-bold small mb-1" style="color: var(--manu-teal);"><i class="fa-regular fa-calendar me-1"></i> Yeni Tarih</label>
+                                        <input type="date" id="duzenleTarih" class="form-control form-control-sm fw-bold border-secondary">
+                                    </div>
+                                    <div class="col-5">
+                                        <label class="form-label fw-bold small mb-1" style="color: var(--manu-teal);"><i class="fa-regular fa-clock me-1"></i> Yeni Saat</label>
+                                        <select id="duzenleSaat" class="form-select form-select-sm fw-bold border-secondary"></select>
+                                    </div>
+                                </div>
+
+                                <!-- ORTAK PAKET VE OTOMATİK GÜN SEÇİMİ (Sadece Yeni Kayıtta Görünür) -->
+                                <div id="paketSecimAlani" class="mb-3 p-3 rounded-3 border" style="background-color: #FDF5FA; border-color: #e8cce0 !important;">
+                                    <div class="mb-2">
+                                        <label class="form-label fw-bold small mb-1" style="color: var(--manu-teal);"><i class="fa-solid fa-ticket me-1" style="color: var(--manu-gold);"></i> Paket / Seans Seçimi (Ortak)</label>
+                                        <select id="kayitPaket" class="form-select form-select-sm fw-bold border-secondary">
+                                            <option value="1">Tek Seans (Sadece Seçili Gün)</option>
+                                            <option value="8">8 Derslik Paket (Otomatik Diz)</option>
+                                            <option value="10">10 Derslik Paket (Otomatik Diz)</option>
+                                            <option value="12">12 Derslik Paket (Otomatik Diz)</option>
+                                            <option value="16">16 Derslik Paket (Otomatik Diz)</option>
+                                        </select>
+                                    </div>
+                                    <div id="gunSecimKutusu" class="d-none mt-2">
+                                        <label class="form-label fw-bold small text-muted mb-1 d-block">Ders Günleri (Ortak Program)</label>
+                                        <div class="d-flex justify-content-between gap-1">
+                                            <input type="checkbox" class="btn-check gun-secim-btn" id="gun1" value="1" autocomplete="off"><label class="btn btn-sm btn-outline-secondary flex-fill px-1 fw-bold" for="gun1">Pzt</label>
+                                            <input type="checkbox" class="btn-check gun-secim-btn" id="gun2" value="2" autocomplete="off"><label class="btn btn-sm btn-outline-secondary flex-fill px-1 fw-bold" for="gun2">Sal</label>
+                                            <input type="checkbox" class="btn-check gun-secim-btn" id="gun3" value="3" autocomplete="off"><label class="btn btn-sm btn-outline-secondary flex-fill px-1 fw-bold" for="gun3">Çar</label>
+                                            <input type="checkbox" class="btn-check gun-secim-btn" id="gun4" value="4" autocomplete="off"><label class="btn btn-sm btn-outline-secondary flex-fill px-1 fw-bold" for="gun4">Per</label>
+                                            <input type="checkbox" class="btn-check gun-secim-btn" id="gun5" value="5" autocomplete="off"><label class="btn btn-sm btn-outline-secondary flex-fill px-1 fw-bold" for="gun5">Cum</label>
+                                            <input type="checkbox" class="btn-check gun-secim-btn" id="gun6" value="6" autocomplete="off"><label class="btn btn-sm btn-outline-secondary flex-fill px-1 fw-bold" for="gun6">Cmt</label>
+                                        </div>
+                                        <small id="gunSecimNotu" class="text-muted d-block mt-1" style="font-size: 0.7rem;">* Seçilen günlerde doluluk veya izin varsa kayıt yapılmaz ve detay gösterilir.</small>
+                                    </div>
+                                </div>
+
+                                <!-- 1. ÜYE (ZORUNLU) -->
+                                <div class="p-3 rounded-3 border mb-3 bg-white">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="badge" style="background-color: var(--manu-teal);">1. Üye (Zorunlu)</span>
+                                    </div>
+                                    <div class="mb-2 position-relative">
+                                        <label class="form-label fw-bold text-muted small mb-1">Üye Adı Soyadı</label>
+                                        <input type="text" id="kayitAdi" class="form-control form-control-sm bg-light" style="border-color: var(--manu-teal);" placeholder="Üye İsmi Giriniz" autocomplete="off" required>
+                                        <ul id="isimOnerileri" class="list-group position-absolute w-100 shadow-sm d-none" style="z-index: 1000; top: 100%;"></ul>
+                                    </div>
+
+                                    <div class="row g-2">
+                                        <div class="col-7">
+                                            <label class="form-label fw-bold text-muted small mb-1"><i class="fa-brands fa-whatsapp me-1" style="color: var(--manu-teal);"></i> Telefon (05XX...)</label>
+                                            <input type="tel" id="kayitTelefon" class="form-control form-control-sm bg-light fw-bold" style="letter-spacing: 1px;" placeholder="05XX XXX XX XX" maxlength="14" required>
+                                        </div>
+                                        <div class="col-5">
+                                            <label class="form-label fw-bold text-muted small mb-1"><i class="fa-solid fa-venus-mars me-1" style="color: var(--manu-gold);"></i> Cinsiyet</label>
+                                            <select id="kayitCinsiyet" class="form-select form-select-sm bg-light fw-bold border-secondary">
+                                                <option value="kadin">Kadın</option>
+                                                <option value="erkek">Erkek</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- GRUP DERSLERİNDE EK ÜYE SATIRLARI (MAX 4 KİŞİ) -->
+                                <div id="grupUyelerBolumu" class="d-none mb-3">
+                                    <div id="ekUyeSatirlari" class="d-flex flex-column gap-2 mb-2"></div>
+                                    <button type="button" id="grupUyeEkleBtn" class="btn btn-sm btn-outline-secondary w-100 fw-bold" onclick="window.grupUyeSatiriEkle()">
+                                        <i class="fa-solid fa-user-plus me-1"></i> Grup Üyesi Ekle (En Fazla 4 Kişi)
+                                    </button>
+                                </div>
+
+                                <button type="submit" id="kaydetBtn" class="btn btn-manu w-100 py-3 fw-bold fs-5 rounded-3 mt-1 shadow-sm">
+                                    <i class="fa-solid fa-check-double me-2"></i> KAYDET
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DERS / GRUP DETAY MODALI -->
+            <div class="modal fade" id="detayModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content rounded-4 border-0 shadow-lg">
+                        <div class="modal-header" style="background-color: var(--manu-teal); color: white; border-radius: 15px 15px 0 0;">
+                            <h5 class="modal-title fw-bold" id="detayModalBaslik"><i class="fa-solid fa-circle-info me-2" style="color: var(--manu-gold);"></i>Ders Detayı</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <div class="alert py-2 mb-3 text-center" style="border-left: 5px solid var(--manu-gold); background-color: #FDF5FA;">
+                                <div class="fw-bold mb-1" style="color: var(--manu-teal);"><i class="fa-regular fa-calendar-check me-1"></i> <span id="detayTarihMetni"></span></div>
+                                <span class="badge me-1 shadow-sm" style="background-color: var(--manu-teal);" id="detaySaatBadge"></span> 
+                                <span class="badge shadow-sm" style="background-color: var(--manu-gold); color: #fff;" id="detayKortBadge"></span>
+                            </div>
+
+                            <div id="detayUyeListesi" class="d-flex flex-column gap-2 mb-3"></div>
+
+                            <button type="button" id="grubaEkleBtn" class="btn btn-manu w-100 py-2 fw-bold rounded-3 shadow-sm d-none">
+                                <i class="fa-solid fa-user-plus me-2"></i> BU GRUBA YENİ ÜYE EKLE
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- AKILLI İPTAL & 12 SAAT KURALI MODALI -->
+            <div class="modal fade" id="iptalModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content rounded-4 border-0 shadow-lg">
+                        <div class="modal-header bg-danger text-white rounded-top-4">
+                            <h5 class="modal-title fw-bold"><i class="fa-solid fa-trash-can me-2"></i>Ders İptali</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <p class="fw-bold mb-2 text-dark" id="iptalUyeBilgi"></p>
+                            <div id="iptal12SaatUyari" class="alert py-2 small fw-bold mb-3"></div>
+
+                            <div id="iptalSeriAlani" class="mb-3 d-none">
+                                <label class="form-label small fw-bold text-muted">İptal Kapsamı</label>
+                                <select id="iptalKapsam" class="form-select form-select-sm fw-bold border-secondary">
+                                    <option value="tek">Sadece Bu Dersi İptal Et</option>
+                                    <option value="seri">Bu ve Sonraki Tüm Paket Derslerini İptal Et</option>
+                                </select>
+                            </div>
+
+                            <div id="iptalHakAlani" class="mb-3">
+                                <label class="form-label small fw-bold text-muted">Ders Hakkı / Telafi İşlemi</label>
+                                <select id="iptalHakSecim" class="form-select form-select-sm fw-bold border-secondary">
+                                    <option value="telafi">Paketin Sonuna 1 Telafi Dersi Otomatik Ekle</option>
+                                    <option value="evet">Ders Hakkını İade Et (+1 Kalan Ders)</option>
+                                    <option value="hayir">Hak İade Etme (Ders Yansın)</option>
+                                </select>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="button" class="btn btn-light border fw-bold flex-fill" data-bs-dismiss="modal">Vazgeç</button>
+                                <button type="button" id="iptalOnaylaBtn" class="btn btn-danger fw-bold flex-fill">
+                                    <i class="fa-solid fa-check me-1"></i> İPTALİ ONAYLA
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MESAJ MERKEZİ POP-UP MODALI -->
+            <div class="modal fade" id="mesajMerkeziModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content rounded-4 border-0 shadow-lg">
+                        <div class="modal-header text-white" style="background-color: #3d2838; border-bottom: 3px solid var(--manu-gold); border-radius: 15px 15px 0 0;">
+                            <h5 class="modal-title fw-bold"><i class="fa-brands fa-whatsapp me-2" style="color: #25D366;"></i>Mesaj Merkezi</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-4" style="background-color: var(--manu-bg);">
+                            
+                            <ul class="nav nav-pills nav-fill bg-white p-2 rounded-4 shadow-sm mb-4 gap-2" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active fw-bold py-2" data-bs-toggle="pill" data-bs-target="#mmYarinPanel" type="button" style="color: var(--manu-teal);">
+                                        <i class="fa-regular fa-clock me-1"></i> Yarının Hatırlatmaları <span id="mmYarinSayac" class="badge bg-dark ms-1">0</span>
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold py-2" data-bs-toggle="pill" data-bs-target="#mmPaketPanel" type="button" style="color: var(--manu-teal);">
+                                        <i class="fa-solid fa-ticket me-1"></i> Paketi Azalanlar <span id="mmPaketSayac" class="badge bg-danger ms-1">0</span>
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold py-2" data-bs-toggle="pill" data-bs-target="#mmTopluPanel" type="button" style="color: var(--manu-teal);">
+                                        <i class="fa-solid fa-bullhorn me-1"></i> Özel Gün & Toplu Duyuru
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <div class="tab-content">
+                                <!-- SEKME 1: YARININ HATIRLATMALARI -->
+                                <div class="tab-pane fade show active" id="mmYarinPanel">
+                                    <div class="card border-0 shadow-sm rounded-4 p-3">
+                                        <p class="text-muted small mb-3">Tarih: <strong id="mmYarinTarih" class="text-dark"></strong></p>
+                                        <div id="mmYarinListesi"></div>
+                                    </div>
+                                </div>
+
+                                <!-- SEKME 2: PAKETİ AZALANLAR -->
+                                <div class="tab-pane fade" id="mmPaketPanel">
+                                    <div class="card border-0 shadow-sm rounded-4 p-3">
+                                        <p class="text-muted small mb-3">Kalan ders hakkı <strong>2 ve altına</strong> düşen üyeler otomatik listelenir.</p>
+                                        <div id="mmPaketListesi"></div>
+                                    </div>
+                                </div>
+
+                                <!-- SEKME 3: ÖZEL GÜN & TOPLU DUYURU -->
+                                <div class="tab-pane fade" id="mmTopluPanel">
+                                    <div class="row g-3">
+                                        <div class="col-lg-5">
+                                            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
+                                                <div class="mb-2">
+                                                    <label class="form-label small fw-bold text-muted">Hazır Şablon</label>
+                                                    <select id="mmSablonSec" class="form-select form-select-sm fw-bold border-secondary">
+                                                        <option value="serbest">Serbest Metin</option>
+                                                        <option value="bayram">Bayram Tebriği</option>
+                                                        <option value="kadinlar">8 Mart Kadınlar Günü</option>
+                                                        <option value="yilbasi">Yeni Yıl Tebriği</option>
+                                                        <option value="tatil">Stüdyo Tatil / Kapanış Duyurusu</option>
+                                                    </select>
+                                                </div>
+                                                <div class="mb-2">
+                                                    <label class="form-label small fw-bold text-muted">Hedef Kitle</label>
+                                                    <select id="mmHedefKitle" class="form-select form-select-sm fw-bold border-secondary">
+                                                        <option value="tumu">Tüm Üyeler</option>
+                                                        <option value="aktif">Sadece Aktif Paketi Olanlar</option>
+                                                        <option value="kadin">Sadece Kadın Üyeler</option>
+                                                        <option value="erkek">Sadece Erkek Üyeler</option>
+                                                    </select>
+                                                </div>
+                                                <div class="mb-2">
+                                                    <label class="form-label small fw-bold text-muted">Mesaj Metni</label>
+                                                    <textarea id="mmTopluMetin" rows="5" class="form-control form-control-sm border-secondary" placeholder="Mesajınızı yazın..."></textarea>
+                                                    <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">İpucu: <code>{'{isim}'}</code> yazarsanız üyenin adı otomatik eklenir.</small>
+                                                </div>
+                                                <button type="button" class="btn btn-manu btn-sm w-100 fw-bold py-2 mt-1" onclick="window.mmKuyrukOlustur()">
+                                                    <i class="fa-solid fa-list-check me-1"></i> Gönderim Listesini Hazırla
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-7">
+                                            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <strong class="small" style="color: var(--manu-teal);">Gönderim Kuyruğu</strong>
+                                                    <span id="mmKuyrukSayac" class="badge bg-secondary">0 Kişi</span>
+                                                </div>
+                                                <div id="mmKuyrukListesi" style="max-height: 340px; overflow-y: auto;">
+                                                    <div class="alert alert-light border text-center text-muted small py-4">Soldan şablon ve hedef kitle seçip listeyi hazırlayın.</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    )}
+</Layout>
+
+<script is:inline>
+    const GRUP_KAPASITE = 4;
+    window.guncelTarih = new Date();
+    window.isoTarihFormat = "";
+    window.myModal = null;
+    window.detayModal = null;
+    window.aktifSlotKayitlari = []; 
+    window.mevcutGrupKisiSayisi = 0;
+    
+    window.aktifEgitmenler = [];
+    window.alanSayisi = 3; 
+    window.saatler = [];
+    window.gunlukIzindekiler = []; 
+
+    let mmTumUyeler = [];
+    let mmTumRez = [];
+
+    const mmSablonlar = {
+        serbest: '',
+        bayram: 'Sayın {isim},\n\nSevdiklerinizle birlikte sağlık, huzur ve enerji dolu mutlu bir bayram geçirmenizi dileriz.\n\nBüşra Pilates Center Keçiören',
+        kadinlar: 'Sayın {isim},\n\nGücünüz, zarafetiniz ve enerjinizle dünyayı güzelleştirdiğiniz için teşekkürler. 8 Mart Dünya Kadınlar Gününüz kutlu olsun!\n\nBüşra Pilates Center Keçiören',
+        yilbasi: 'Sayın {isim},\n\nYeni yılın size sağlık, mutluluk ve bol hareketli harika günler getirmesini dileriz. Nice güzel yıllara!\n\nBüşra Pilates Center Keçiören',
+        tatil: 'Sayın {isim},\n\nStüdyomuz [TARİH] tarihinde kapalı olacaktır. Ders programınızla ilgili sorularınız için bize yazabilirsiniz.\n\nBüşra Pilates Center Keçiören'
+    };
+
+    function saatDakikaToDk(saatStr) {
+        const [s, d = '0'] = (saatStr || '00:00').split(':');
+        return (parseInt(s, 10) || 0) * 60 + (parseInt(d, 10) || 0);
+    }
+
+    function bugunYerelTarihStr() {
+        const simdi = new Date();
+        const yil = simdi.getFullYear();
+        const ay = String(simdi.getMonth() + 1).padStart(2, '0');
+        const gun = String(simdi.getDate()).padStart(2, '0');
+        return `${yil}-${ay}-${gun}`;
+    }
+
+    function slotGecmisSaatMi(tarihStr, saatStr) {
+        const bugunTarihi = bugunYerelTarihStr();
+        if (tarihStr !== bugunTarihi) return false;
+
+        const simdi = new Date();
+        const suAnkiDk = simdi.getHours() * 60 + simdi.getMinutes();
+        return saatDakikaToDk(saatStr) < suAnkiDk;
+    }
+
+    function mmWpLink(telefon, mesaj) {
+        const temiz = (telefon || '').replace(/\D/g, '');
+        if (temiz.length < 10) return null;
+        const trNumara = temiz.startsWith('0') ? '9' + temiz : '90' + temiz;
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        return isMobile
+            ? `https://api.whatsapp.com/send?phone=${trNumara}&text=${encodeURIComponent(mesaj)}`
+            : `https://web.whatsapp.com/send?phone=${trNumara}&text=${encodeURIComponent(mesaj)}`;
+    }
+
+    function seciliFormatGetir() {
+        return document.querySelector('input[name="dersFormatiRadio"]:checked')?.value === 'ozel' ? 'ozel' : 'grup';
+    }
+
+    function seciliFormatAta(format) {
+        const hedef = format === 'ozel' ? 'formatOzel' : 'formatGrup';
+        const el = document.getElementById(hedef);
+        if (el) el.checked = true;
+    }
+
+    function birlesikDersTuruOlustur(brans, format) {
+        const temizBrans = (brans || 'Reformer Pilates').trim();
+        if (format === 'ozel') {
+            return temizBrans === 'Reformer Pilates' ? 'Reformer Pilates Özel Ders' : `${temizBrans} (Özel Ders)`;
+        }
+        return temizBrans === 'Reformer Pilates' ? 'Reformer Pilates Grup Ders' : `${temizBrans} (Grup Ders)`;
+    }
+
+    function kayitFormatiniBul(kayit) {
+        if (kayit?.dersFormati === 'ozel' || kayit?.dersFormati === 'grup') return kayit.dersFormati;
+        const t = (kayit?.rezervasyonTuru || '').toLocaleLowerCase('tr-TR');
+        if (t.includes('özel') || t.includes('ozel')) return 'ozel';
+        return 'grup';
+    }
+
+    function kayitBransiniBul(kayit) {
+        const t = (kayit?.rezervasyonTuru || '').toLocaleLowerCase('tr-TR');
+        if (t.includes('hamile')) return 'Hamile Pilatesi';
+        if (t.includes('mat')) return 'Mat Pilates';
+        return 'Reformer Pilates';
+    }
+
+    function cinsiyetIkonHtml(cinsiyet, kucuk = false) {
+        const erkekMi = (cinsiyet || 'kadin') === 'erkek';
+        const boyutClass = kucuk ? 'ms-1' : 'me-1';
+        if (erkekMi) {
+            return `<i class="fa-solid fa-mars ${boyutClass}" style="color: #2563eb;" title="Erkek"></i>`;
+        }
+        return `<i class="fa-solid fa-venus ${boyutClass}" style="color: #db2777;" title="Kadın"></i>`;
+    }
+
+    function bransIkonHtml(kayit) {
+        const brans = kayitBransiniBul(kayit);
+        if (brans === 'Hamile Pilatesi') {
+            return `<i class="fa-solid fa-person-pregnant me-1" style="color: var(--manu-gold);" title="Hamile Pilatesi"></i>`;
+        }
+        if (brans === 'Mat Pilates') {
+            return `<i class="fa-solid fa-child-reaching me-1" style="color: var(--manu-teal-light);" title="Mat Pilates"></i>`;
+        }
+        return `<i class="fa-solid fa-dumbbell me-1" style="color: var(--manu-teal);" title="Reformer Pilates"></i>`;
+    }
+
+    function kalanDersRozetHtml(kalanDers, kucuk = false) {
+        if (kalanDers === null || kalanDers === undefined) return '';
+        const adet = Number(kalanDers);
+        if (Number.isNaN(adet)) return '';
+
+        const renkClass = adet <= 0 ? 'bg-danger' : (adet <= 2 ? 'bg-warning text-dark' : 'bg-secondary');
+        const boyutClass = kucuk ? 'ms-1' : 'ms-2';
+        const metin = adet <= 0 ? '0 kaldı' : `${adet} ders`;
+        return `<span class="badge ${renkClass} ${boyutClass}" style="font-size: ${kucuk ? '0.62rem' : '0.72rem'};" title="Kalan Ders Hakkı">${metin}</span>`;
+    }
+
+    function isGrupKayit(kayit) {
+        return kayitFormatiniBul(kayit) === 'grup';
+    }
+
+    function isimFormatla(isim) {
+        if (!isim) return "";
+        const parcalar = isim.trim().split(/\s+/);
+        if (parcalar.length === 1) {
+            return parcalar[0].charAt(0).toLocaleUpperCase('tr-TR') + parcalar[0].slice(1).toLocaleLowerCase('tr-TR');
+        }
+        const sonKelime = parcalar.pop().toLocaleUpperCase('tr-TR');
+        const ilkKisim = parcalar.map(p => p.charAt(0).toLocaleUpperCase('tr-TR') + p.slice(1).toLocaleLowerCase('tr-TR')).join(' ');
+        return ilkKisim + ' ' + sonKelime;
+    }
+
+    function telefonMaskele(deger) {
+        let val = (deger || '').replace(/\D/g, '');
+        if (val.length > 0 && val[0] !== '0') val = '0' + val;
+        if (val.length > 1 && val[1] !== '5') val = val.substring(0, 1) + '5' + val.substring(2);
+        let res = '';
+        if (val.length > 0) res += val.substring(0, 4);
+        if (val.length > 4) res += ' ' + val.substring(4, 7);
+        if (val.length > 7) res += ' ' + val.substring(7, 9);
+        if (val.length > 9) res += ' ' + val.substring(9, 11);
+        return res;
+    }
+
+    function grupUyeleriSifirla() {
+        const konteyner = document.getElementById('ekUyeSatirlari');
+        if (konteyner) konteyner.innerHTML = '';
+        grupUyeGorunurlukGuncelle();
+    }
+
+    function grupUyeGorunurlukGuncelle() {
+        const bolum = document.getElementById('grupUyelerBolumu');
+        const ekleBtn = document.getElementById('grupUyeEkleBtn');
+        const editId = document.getElementById('editKayitId')?.value;
+        const formatGrupMu = seciliFormatGetir() === 'grup';
+        const konteyner = document.getElementById('ekUyeSatirlari');
+        if (!bolum || !konteyner) return;
+
+        const kalanKapasite = Math.max(1, GRUP_KAPASITE - (window.mevcutGrupKisiSayisi || 0));
+
+        if (!editId && formatGrupMu && kalanKapasite > 1) {
+            bolum.classList.remove('d-none');
+            const formdakiKisi = 1 + konteyner.children.length;
+            const toplamGrup = (window.mevcutGrupKisiSayisi || 0) + formdakiKisi;
+            if (ekleBtn) {
+                ekleBtn.classList.toggle('d-none', formdakiKisi >= kalanKapasite);
+                ekleBtn.innerHTML = `<i class="fa-solid fa-user-plus me-1"></i> Grup Üyesi Ekle (${toplamGrup}/${GRUP_KAPASITE} Kişi)`;
+            }
+        } else {
+            bolum.classList.add('d-none');
+            konteyner.innerHTML = '';
+        }
+    }
+
+    function grupUyeNumaralandir() {
+        const baslangicNo = (window.mevcutGrupKisiSayisi || 0) + 2;
+        document.querySelectorAll('#ekUyeSatirlari .ek-uye-satir').forEach((satir, i) => {
+            const rozet = satir.querySelector('.badge');
+            if (rozet) rozet.textContent = `${baslangicNo + i}. Üye (İsteğe Bağlı)`;
+        });
+    }
+
+    window.grupUyeSatiriEkle = function() {
+        const konteyner = document.getElementById('ekUyeSatirlari');
+        const kalanKapasite = Math.max(1, GRUP_KAPASITE - (window.mevcutGrupKisiSayisi || 0));
+        const formdakiKisi = 1 + konteyner.children.length;
+        if (formdakiKisi >= kalanKapasite) return;
+
+        const sira = (window.mevcutGrupKisiSayisi || 0) + formdakiKisi + 1;
+        const satir = document.createElement('div');
+        satir.className = 'p-3 rounded-3 border bg-white ek-uye-satir';
+        satir.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="badge" style="background-color: var(--manu-teal-light);">${sira}. Üye (İsteğe Bağlı)</span>
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="this.closest('.ek-uye-satir').remove(); grupUyeNumaralandir(); grupUyeGorunurlukGuncelle();" title="Satırı Kaldır">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="mb-2 position-relative">
+                <input type="text" class="form-control form-control-sm bg-light ek-uye-ad" placeholder="Üye Adı Soyadı" autocomplete="off" required>
+                <ul class="list-group position-absolute w-100 shadow-sm d-none ek-uye-oneriler" style="z-index: 1000; top: 100%;"></ul>
+            </div>
+            <div class="row g-2">
+                <div class="col-7">
+                    <input type="tel" class="form-control form-control-sm bg-light fw-bold ek-uye-tel" style="letter-spacing: 1px;" placeholder="05XX XXX XX XX" maxlength="14" required>
+                </div>
+                <div class="col-5">
+                    <select class="form-select form-select-sm bg-light fw-bold border-secondary ek-uye-cinsiyet">
+                        <option value="kadin">Kadın</option>
+                        <option value="erkek">Erkek</option>
+                    </select>
+                </div>
+            </div>
+        `;
+
+        const telInput = satir.querySelector('.ek-uye-tel');
+        telInput.addEventListener('input', function (e) {
+            e.target.value = telefonMaskele(e.target.value);
+        });
+
+        const adInput = satir.querySelector('.ek-uye-ad');
+        const oneriUl = satir.querySelector('.ek-uye-oneriler');
+        let timer;
+
+        adInput.addEventListener('blur', function(e) { e.target.value = isimFormatla(e.target.value); });
+        adInput.addEventListener('input', (e) => {
+            clearTimeout(timer);
+            if (e.target.value.length < 2) { oneriUl.classList.add('d-none'); return; }
+            timer = setTimeout(async () => {
+                const res = await fetch(`/api/musteri-ara?q=${e.target.value}`);
+                const musteriler = await res.json();
+                oneriUl.innerHTML = '';
+                if (musteriler.length > 0) {
+                    musteriler.forEach(m => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item list-group-item-action cursor-pointer d-flex justify-content-between align-items-center';
+                        li.innerHTML = `<span class="fw-bold" style="color: var(--manu-teal);">${m.adSoyad}</span> <span class="badge bg-light text-dark border">${m.telefon}</span>`;
+                        li.addEventListener('click', () => {
+                            adInput.value = m.adSoyad;
+                            telInput.value = m.telefon;
+                            if (m.cinsiyet) satir.querySelector('.ek-uye-cinsiyet').value = m.cinsiyet;
+                            oneriUl.classList.add('d-none');
+                        });
+                        oneriUl.appendChild(li);
+                    });
+                    oneriUl.classList.remove('d-none');
+                } else {
+                    oneriUl.classList.add('d-none');
+                }
+            }, 300);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (e.target !== adInput && e.target !== oneriUl) oneriUl.classList.add('d-none');
+        });
+
+        konteyner.appendChild(satir);
+        grupUyeNumaralandir();
+        grupUyeGorunurlukGuncelle();
+    };
+
+    function egitmenByKort(kortNo) {
+        return window.aktifEgitmenler[kortNo - 1] || window.aktifEgitmenler[0] || {
+            anahtar: 'ilayda',
+            adSoyad: 'İlayda Hoca',
+            baslangicSaati: 9,
+            bitisSaati: 17,
+            renk: '#6B4C63'
+        };
+    }
+
+    function egitmenByAnahtar(anahtar) {
+        return window.aktifEgitmenler.find(e => e.anahtar === anahtar) || null;
+    }
+
+    function basliklariCiz() {
+        const tr = document.getElementById('tabloBaslikKismi');
+        if (!tr) return;
+        const genislik = Math.max(12, Math.floor(90 / Math.max(1, window.alanSayisi)));
+        let html = `<th style="width: 10%; background-color: #3d2838; color: white;"><i class="fa-regular fa-clock"></i></th>`;
+        window.aktifEgitmenler.forEach(eg => {
+            const bas = String(eg.baslangicSaati).padStart(2, '0') + ':00';
+            const bit = String(eg.bitisSaati).padStart(2, '0') + ':00';
+            html += `<th style="width: ${genislik}%; background-color: ${eg.renk || '#6B4C63'} !important; color: white !important; border-bottom: 3px solid rgba(0,0,0,0.2) !important;" class="align-middle text-center">${eg.adSoyad.toLocaleUpperCase('tr-TR')}<br><small class="fw-normal opacity-75">${bas}-${bit}</small></th>`;
+        });
+        tr.innerHTML = html;
+
+        const uzmanSelect = document.getElementById('kayitUzman');
+        if (uzmanSelect) {
+            uzmanSelect.innerHTML = window.aktifEgitmenler.map(eg => `<option value="${eg.anahtar}">${eg.adSoyad}</option>`).join('');
+        }
+
+        const kitleSelect = document.getElementById('mmHedefKitle');
+        if (kitleSelect) {
+            kitleSelect.innerHTML = `
+                <option value="tumu">Tüm Üyeler</option>
+                <option value="aktif">Sadece Aktif Paketi Olanlar</option>
+                <option value="kadin">Sadece Kadın Üyeler</option>
+                <option value="erkek">Sadece Erkek Üyeler</option>
+                ${window.aktifEgitmenler.map(eg => `<option value="${eg.anahtar}">${eg.adSoyad}'nın Üyeleri</option>`).join('')}
+            `;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) {
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('loginBtn');
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> GİRİŞ YAPILIYOR...';
+                try {
+                    const res = await fetch('/api/login', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ kullaniciAdi: document.getElementById('kullaniciAdi').value, sifre: document.getElementById('sifre').value })
+                    });
+                    if (res.ok) window.location.reload(); 
+                    else { alert((await res.json()).error); btn.innerHTML = 'GİRİŞ YAP'; }
+                } catch(err) { alert("Sunucu hatası."); }
+            });
+        }
+
+        if (document.getElementById('cikisBtn')) {
+            document.getElementById('cikisBtn').addEventListener('click', async () => {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.reload();
+            });
+        }
+
+        if (document.getElementById('anaSistem')) {
+            window.aktifKullanici = document.getElementById('authVerileri').getAttribute('data-kullanici');
+            window.aktifRol = document.getElementById('authVerileri').getAttribute('data-rol');
+
+            baslatSistemi();
+
+            document.getElementById('dunBtn').addEventListener('click', () => tarihDegistir(-1));
+            document.getElementById('yarinBtn').addEventListener('click', () => tarihDegistir(1));
+            
+            const gizliTakvim = document.getElementById('gizliTakvim');
+            gizliTakvim.addEventListener('change', (e) => tarihiGuncelle(e.target.value));
+            gizliTakvim.addEventListener('click', function() { try { this.showPicker(); } catch (err) {} });
+
+            document.getElementById('kayitPaket').addEventListener('change', function() {
+                const kutu = document.getElementById('gunSecimKutusu');
+                if (parseInt(this.value) > 1) kutu.classList.remove('d-none');
+                else kutu.classList.add('d-none');
+            });
+
+            document.querySelectorAll('input[name="dersFormatiRadio"]').forEach(r => {
+                r.addEventListener('change', grupUyeGorunurlukGuncelle);
+            });
+
+            const telInput = document.getElementById('kayitTelefon');
+            if(telInput) {
+                telInput.addEventListener('input', function (e) {
+                    e.target.value = telefonMaskele(e.target.value);
+                });
+            }
+
+            const isimInput = document.getElementById('kayitAdi');
+            const oneriListesi = document.getElementById('isimOnerileri');
+            let aramaZamanlayici;
+
+            isimInput.addEventListener('blur', function(e) { e.target.value = isimFormatla(e.target.value); });
+
+            isimInput.addEventListener('input', (e) => {
+                clearTimeout(aramaZamanlayici);
+                if (e.target.value.length < 2) { oneriListesi.classList.add('d-none'); return; }
+                aramaZamanlayici = setTimeout(async () => {
+                    const res = await fetch(`/api/musteri-ara?q=${e.target.value}`);
+                    const musteriler = await res.json();
+                    oneriListesi.innerHTML = '';
+                    if (musteriler.length > 0) {
+                        musteriler.forEach(m => {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item list-group-item-action cursor-pointer d-flex justify-content-between align-items-center';
+                            const krediRozeti = (m.kalanDers !== undefined && m.kalanDers !== null)
+                                ? `<span class="badge ms-2 ${m.kalanDers <= 2 ? 'bg-danger' : 'bg-success'}">Kalan: ${m.kalanDers}</span>` : '';
+                            li.innerHTML = `<div><span class="fw-bold" style="color: var(--manu-teal);">${m.adSoyad}</span>${krediRozeti}</div> <span class="badge bg-light text-dark border">${m.telefon}</span>`;
+                            li.addEventListener('click', () => {
+                                isimInput.value = m.adSoyad;
+                                document.getElementById('kayitTelefon').value = m.telefon;
+                                if (m.cinsiyet) document.getElementById('kayitCinsiyet').value = m.cinsiyet;
+                                oneriListesi.classList.add('d-none');
+                            });
+                            oneriListesi.appendChild(li);
+                        });
+                        oneriListesi.classList.remove('d-none');
+                    } else oneriListesi.classList.add('d-none');
+                }, 300);
+            });
+            document.addEventListener('click', (e) => { if(e.target !== isimInput && e.target !== oneriListesi) oneriListesi.classList.add('d-none'); });
+
+            document.getElementById('kayitFormu').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('kaydetBtn');
+                const guncelTel = document.getElementById('kayitTelefon').value;
+                if(guncelTel && guncelTel.length < 14) { alert("Lütfen numarayı eksiksiz giriniz."); return; }
+
+                const editId = document.getElementById('editKayitId').value;
+                const methodType = editId ? 'PUT' : 'POST';
+                const paketSayisi = editId ? 1 : parseInt(document.getElementById('kayitPaket').value) || 1;
+                const secilenGunler = Array.from(document.querySelectorAll('.gun-secim-btn:checked')).map(cb => parseInt(cb.value));
+
+                if (!editId && paketSayisi > 1 && secilenGunler.length === 0) {
+                    alert("Lütfen paketin dizileceği en az bir ders günü seçiniz.");
+                    return;
+                }
+
+                const finalIsim = isimFormatla(document.getElementById('kayitAdi').value);
+                const brans = document.getElementById('kayitBrans').value;
+                const format = seciliFormatGetir();
+                const dersTuru = birlesikDersTuruOlustur(brans, format);
+
+                const uyelerPayload = [{
+                    kisiAdi: finalIsim,
+                    telefon: guncelTel,
+                    cinsiyet: document.getElementById('kayitCinsiyet').value
+                }];
+
+                if (!editId && format === 'grup') {
+                    const ekSatirlar = Array.from(document.querySelectorAll('#ekUyeSatirlari .ek-uye-satir'));
+                    for (const satir of ekSatirlar) {
+                        const ad = isimFormatla(satir.querySelector('.ek-uye-ad').value);
+                        const tel = satir.querySelector('.ek-uye-tel').value;
+                        const cins = satir.querySelector('.ek-uye-cinsiyet').value;
+                        if (!ad) {
+                            alert("Eklenen grup üyesinin adını giriniz veya satırı kaldırınız.");
+                            return;
+                        }
+                        if (tel && tel.length < 14) {
+                            alert(`${ad} için telefon numarasını eksiksiz giriniz.`);
+                            return;
+                        }
+                        uyelerPayload.push({ kisiAdi: ad, telefon: tel, cinsiyet: cins });
+                    }
+                }
+
+                const gorulenAdlar = new Set();
+                const gorulenTeller = new Set();
+                for (const u of uyelerPayload) {
+                    const adKey = u.kisiAdi.toLocaleLowerCase('tr-TR');
+                    const telKey = (u.telefon || '').replace(/\D/g, '');
+                    if (gorulenAdlar.has(adKey) || (telKey.length >= 10 && gorulenTeller.has(telKey))) {
+                        alert(`${u.kisiAdi} listede birden fazla kez girilmiş. Lütfen kontrol ediniz.`);
+                        return;
+                    }
+                    gorulenAdlar.add(adKey);
+                    if (telKey.length >= 10) gorulenTeller.add(telKey);
+                }
+
+                btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> İŞLENİYOR...';
+
+                try {
+                    const payloadObj = { 
+                        id: editId,
+                        kortNo: document.getElementById('kayitKort').value, 
+                        tarih: editId ? document.getElementById('duzenleTarih').value : window.isoTarihFormat, 
+                        saat: editId ? document.getElementById('duzenleSaat').value : document.getElementById('kayitSaat').value, 
+                        kisiAdi: finalIsim, 
+                        telefon: guncelTel, 
+                        rezervasyonTuru: dersTuru, 
+                        dersBransi: brans,
+                        dersFormati: format,
+                        cinsiyet: document.getElementById('kayitCinsiyet').value,
+                        uyeler: uyelerPayload,
+                        ekleyen: document.getElementById('kayitUzman').value,
+                        paketSayisi: paketSayisi,
+                        secilenGunler: secilenGunler,
+                        onayDurumu: 'onaylandi'
+                    };
+
+                    const response = await fetch('/api/rezervasyon', {
+                        method: methodType,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payloadObj)
+                    });
+
+                    const sonuc = await response.json();
+
+                    if (response.ok) {
+                        if(window.myModal) window.myModal.hide();
+                        await tabloyuCiz();
+
+                        let wpUrl = null;
+                        if (methodType === 'POST') {
+                            const [yil, ay, gun] = window.isoTarihFormat.split('-');
+                            const konumLinki = `${window.location.origin}/konum`;
+                            const paketNotu = paketSayisi > 1 ? ` (${paketSayisi} derslik paket programınız oluşturuldu)` : '';
+                            const wpMesaj = `Sayın ${finalIsim},\n\n${gun}.${ay}.${yil} tarihi saat ${document.getElementById('kayitSaat').value} başlangıçlı Büşra Pilates Center Keçiören ${dersTuru} kaydınız oluşturulmuştur${paketNotu}.\n\n⚠️ Ders saatine 12 saat kala yapılan iptallerde ders hakkınız düşmektedir.\n📍 Konum: ${konumLinki}\n\nSağlıklı ve enerjik günler dileriz.`;
+                            wpUrl = mmWpLink(guncelTel, wpMesaj);
+                        }
+
+                        if(typeof Swal !== 'undefined') {
+                            let mesaj = 'Ders kaydı eklendi.';
+                            if (editId) {
+                                mesaj = 'Ders kaydı güncellendi.';
+                            } else if (paketSayisi > 1) {
+                                const tarihAraligi = sonuc.ilkTarih && sonuc.sonTarih
+                                    ? ` (${sonuc.ilkTarih} – ${sonuc.sonTarih})`
+                                    : '';
+                                mesaj = uyelerPayload.length > 1
+                                    ? `${uyelerPayload.length} kişilik grup için ${sonuc.basariliKayit} ders oluşturuldu${tarihAraligi}.`
+                                    : `${sonuc.basariliKayit} derslik paket takvime dizildi${tarihAraligi}.`;
+                            } else if (uyelerPayload.length > 1) {
+                                mesaj = `${uyelerPayload.length} kişilik grup kaydı eklendi.`;
+                            }
+
+                            Swal.fire({
+                                title: 'Başarılı!',
+                                text: mesaj,
+                                icon: 'success',
+                                showCancelButton: !!wpUrl,
+                                confirmButtonText: 'Tamam',
+                                confirmButtonColor: '#6B4C63',
+                                cancelButtonText: '<i class="fa-brands fa-whatsapp me-1"></i> WhatsApp ile Bildir',
+                                cancelButtonColor: '#25D366'
+                            }).then((res) => {
+                                if (res.dismiss === Swal.DismissReason.cancel && wpUrl) {
+                                    window.open(wpUrl, '_blank');
+                                }
+                            });
+                        }
+                    } else {
+                        const cakismaListesi = Array.isArray(sonuc.cakismalar) ? sonuc.cakismalar : [];
+                        if (typeof Swal !== 'undefined' && cakismaListesi.length > 0) {
+                            const listeHtml = `<ul class="text-start small mb-0 ps-3">${cakismaListesi.map(c => `<li class="mb-1">${c}</li>`).join('')}</ul>`;
+                            Swal.fire({
+                                title: 'Kayıt Yapılamadı!',
+                                html: `<p class="fw-semibold text-dark mb-2">${sonuc.error || 'Çakışan günler tespit edildi.'}</p>${listeHtml}`,
+                                icon: 'error',
+                                confirmButtonText: 'Düzenle',
+                                confirmButtonColor: '#6B4C63'
+                            });
+                        } else {
+                            const detayMetin = cakismaListesi.length > 0
+                                ? `${sonuc.error}\n\n• ${cakismaListesi.join('\n• ')}`
+                                : (sonuc.error || "İşlem başarısız.");
+                            alert(detayMetin);
+                        }
+                    }
+                } catch (error) { alert("Veritabanına bağlanılamadı."); } 
+                finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check-double me-2"></i> KAYDET'; }
+            });
+        }
+    });
+
+    window.mesajMerkeziAc = async function() {
+        const btn = document.getElementById('mesajMerkeziBtn');
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Yükleniyor...';
+
+        try {
+            const yarin = new Date();
+            yarin.setDate(yarin.getDate() + 1);
+            const yarinIso = new Date(yarin.getTime() - (yarin.getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
+            const yarinTr = yarin.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
+            document.getElementById('mmYarinTarih').innerText = yarinTr;
+
+            const [yarinRes, rehberRes, tumRezRes] = await Promise.all([
+                fetch(`/api/rezervasyon?tarih=${yarinIso}`),
+                fetch('/api/rehber'),
+                fetch('/api/rezervasyon?tarih=hepsi')
+            ]);
+
+            const yarinKayitlar = await yarinRes.json();
+            mmTumUyeler = await rehberRes.json();
+            mmTumRez = await tumRezRes.json();
+
+            const onaylilar = (yarinKayitlar || []).filter(k => k.onayDurumu === 'onaylandi' || !k.onayDurumu).sort((a, b) => a.saat.localeCompare(b.saat));
+            document.getElementById('mmYarinSayac').innerText = onaylilar.length;
+            const yarinDiv = document.getElementById('mmYarinListesi');
+            if (onaylilar.length === 0) {
+                yarinDiv.innerHTML = '<div class="alert alert-light border text-center text-muted py-4">Yarın için kayıtlı ders bulunmuyor.</div>';
+            } else {
+                const konumLinki = `${window.location.origin}/konum`;
+                yarinDiv.innerHTML = '<ul class="list-group list-group-flush border rounded-3">' + onaylilar.map(k => {
+                    const mesaj = `Sayın ${k.kisiAdi},\n\nHatırlatma: Yarın (${yarinTr}) saat ${k.saat} için Büşra Pilates Center Keçiören'de ${k.rezervasyonTuru} dersiniz bulunmaktadır.\n\n📍 Konum: ${konumLinki}\n\nGörüşmek üzere!`;
+                    const link = mmWpLink(k.telefon, mesaj);
+                    return `<li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                        <div><strong class="d-block text-dark">${k.kisiAdi}</strong><small class="text-muted">${k.saat} — ${k.rezervasyonTuru}</small></div>
+                        ${link ? `<a href="${link}" target="_blank" class="btn btn-sm btn-success fw-bold px-3 rounded-pill" onclick="this.innerHTML='Gönderildi ✓'; this.classList.replace('btn-success','btn-outline-secondary');"><i class="fa-brands fa-whatsapp me-1"></i> Gönder</a>` : '<span class="badge bg-secondary">Tel Yok</span>'}
+                    </li>`;
+                }).join('') + '</ul>';
+            }
+
+            const azalanlar = (mmTumUyeler || []).filter(m => {
+                const kalan = (m.gelecekDers > 0) ? m.gelecekDers : (m.kalanDers || 0);
+                const toplam = Math.max(m.toplamDers || 0, kalan);
+                return toplam > 0 && kalan <= 2;
+            });
+            document.getElementById('mmPaketSayac').innerText = azalanlar.length;
+            const paketDiv = document.getElementById('mmPaketListesi');
+            if (azalanlar.length === 0) {
+                paketDiv.innerHTML = '<div class="alert alert-light border text-center text-muted py-4">Paketi bitmek üzere olan üye bulunmuyor.</div>';
+            } else {
+                paketDiv.innerHTML = '<ul class="list-group list-group-flush border rounded-3">' + azalanlar.map(m => {
+                    const kalan = (m.gelecekDers > 0) ? m.gelecekDers : (m.kalanDers || 0);
+                    const mesaj = kalan === 0
+                        ? `Sayın ${m.adSoyad},\n\nBüşra Pilates Center Keçiören'deki mevcut ders paketiniz tamamlanmıştır. Yeni dönem programınızı birlikte planlamak için bize yazabilirsiniz.\n\nSağlıklı günler dileriz.`
+                        : `Sayın ${m.adSoyad},\n\nBüşra Pilates Center Keçiören'deki paketinizde son ${kalan} dersiniz kalmıştır. Yeni dönem gün ve saatlerinizi sabitlemek için bize dönüş yapabilirsiniz.\n\nSağlıklı günler dileriz.`;
+                    const link = mmWpLink(m.telefon, mesaj);
+                    return `<li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                        <div><strong class="d-block text-dark">${m.adSoyad}</strong><span class="badge bg-danger">Kalan: ${kalan} Ders</span></div>
+                        ${link ? `<a href="${link}" target="_blank" class="btn btn-sm btn-success fw-bold px-3 rounded-pill" onclick="this.innerHTML='Gönderildi ✓'; this.classList.replace('btn-success','btn-outline-secondary');"><i class="fa-brands fa-whatsapp me-1"></i> Hatırlat</a>` : '<span class="badge bg-secondary">Tel Yok</span>'}
+                    </li>`;
+                }).join('') + '</ul>';
+            }
+
+            document.getElementById('mmSablonSec').onchange = function() {
+                document.getElementById('mmTopluMetin').value = mmSablonlar[this.value] || '';
+                if (this.value === 'kadinlar') document.getElementById('mmHedefKitle').value = 'kadin';
+            };
+
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('mesajMerkeziModal')).show();
+        } catch (err) {
+            alert("Mesaj Merkezi verileri yüklenemedi.");
+        } finally {
+            if (btn) btn.innerHTML = '<i class="fa-brands fa-whatsapp me-1"></i> Mesaj Merkezi';
+        }
+    };
+
+    window.mmKuyrukOlustur = function() {
+        const metin = document.getElementById('mmTopluMetin').value.trim();
+        const kitle = document.getElementById('mmHedefKitle').value;
+        const div = document.getElementById('mmKuyrukListesi');
+        if (!metin) { alert("Lütfen bir mesaj metni yazın veya şablon seçin."); return; }
+
+        let liste = [...mmTumUyeler];
+        if (kitle === 'aktif') {
+            liste = liste.filter(m => (m.gelecekDers > 0) || (m.kalanDers > 0));
+        } else if (kitle === 'kadin' || kitle === 'erkek') {
+            liste = liste.filter(m => (m.cinsiyet || 'kadin') === kitle);
+        } else if (egitmenByAnahtar(kitle)) {
+            const hocaUyeleri = new Set(mmTumRez.filter(r => r.notlar === kitle).map(r => (r.kisiAdi || '').toLocaleLowerCase('tr-TR')));
+            liste = liste.filter(m => hocaUyeleri.has((m.adSoyad || '').toLocaleLowerCase('tr-TR')));
+        }
+
+        const gorulenTel = new Set();
+        const hazirListe = liste.filter(m => {
+            const tel = (m.telefon || '').replace(/\D/g, '');
+            if (tel.length < 10 || gorulenTel.has(tel)) return false;
+            gorulenTel.add(tel);
+            return true;
+        });
+
+        document.getElementById('mmKuyrukSayac').innerText = `${hazirListe.length} Kişi`;
+        if (hazirListe.length === 0) {
+            div.innerHTML = '<div class="alert alert-warning text-center small">Uygun üye bulunamadı.</div>';
+            return;
+        }
+
+        div.innerHTML = '<ul class="list-group list-group-flush border rounded-3">' + hazirListe.map(m => {
+            const link = mmWpLink(m.telefon, metin.replaceAll('{isim}', m.adSoyad));
+            return `<li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div><strong class="d-block text-dark small">${m.adSoyad}</strong><small class="text-muted">${m.telefon}</small></div>
+                <a href="${link}" target="_blank" class="btn btn-sm btn-success fw-bold px-3 rounded-pill" onclick="this.innerHTML='Gönderildi ✓'; this.classList.replace('btn-success','btn-outline-secondary');"><i class="fa-brands fa-whatsapp me-1"></i> Gönder</a>
+            </li>`;
+        }).join('') + '</ul>';
+    };
+
+    async function baslatSistemi() {
+        if(typeof bootstrap !== 'undefined') {
+            window.myModal = new bootstrap.Modal(document.getElementById('rezModal'));
+            window.detayModal = new bootstrap.Modal(document.getElementById('detayModal'));
+        }
+
+        let baslangic = 9;
+        let bitis = 22;
+
+        try {
+            const [ayarRes, egRes] = await Promise.all([
+                fetch('/api/ayarlar-api'),
+                fetch('/api/egitmenler')
+            ]);
+
+            if(ayarRes.ok) {
+                const ayar = await ayarRes.json();
+                baslangic = Math.max(6, parseInt(ayar.baslangicSaati || 9));
+                bitis = Math.min(24, parseInt(ayar.bitisSaati || 22));
+            }
+
+            if(egRes.ok) {
+                const tumEg = await egRes.json();
+                window.aktifEgitmenler = (Array.isArray(tumEg) ? tumEg : []).filter(e => e.aktif);
+            }
+        } catch(err) {}
+
+        if (window.aktifEgitmenler.length === 0) {
+            window.aktifEgitmenler = [
+                { id: 1, adSoyad: 'İlayda Hoca', anahtar: 'ilayda', baslangicSaati: 9, bitisSaati: 17, renk: '#6B4C63', aktif: true },
+                { id: 2, adSoyad: 'Esra Hoca', anahtar: 'esra', baslangicSaati: 15, bitisSaati: 22, renk: '#9E6B8E', aktif: true },
+                { id: 3, adSoyad: 'Büşra Hoca', anahtar: 'busra', baslangicSaati: 17, bitisSaati: 22, renk: '#E563B1', aktif: true }
+            ];
+        }
+
+        window.alanSayisi = window.aktifEgitmenler.length;
+        window.saatler = [];
+        for(let i = baslangic; i < bitis; i++) {
+            window.saatler.push(i.toString().padStart(2, '0') + ":00");
+        }
+
+        basliklariCiz();
+        tarihiGuncelle(bugunYerelTarihStr());
+    }
+
+    function tarihDegistir(gf) { window.guncelTarih.setDate(window.guncelTarih.getDate() + gf); tarihiGuncelle(`${window.guncelTarih.getFullYear()}-${String(window.guncelTarih.getMonth() + 1).padStart(2, '0')}-${String(window.guncelTarih.getDate()).padStart(2, '0')}`); }
+    
+    function tarihiGuncelle(val) {
+        if(!val) return;
+        window.isoTarihFormat = val;
+        const [yil, ay, gun] = val.split('-');
+        window.guncelTarih = new Date(yil, ay - 1, gun);
+        document.getElementById('gizliTakvim').value = window.isoTarihFormat;
+        document.getElementById('gosterilenTarih').innerText = window.guncelTarih.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'long' });
+        tabloyuCiz();
+    }
+
+    function izinSebepBul(aktifIzinler, saatStr, egitmen, kortNo) {
+        const slotDk = saatDakikaToDk(saatStr);
+
+        const tumIzin = aktifIzinler.find(iz => iz.kapsam === 'TUM');
+        if (tumIzin) return tumIzin.sebep || 'Kapalı';
+
+        const hocaIzin = aktifIzinler.find(iz => {
+            const kapsamUyuyor = iz.kapsam === egitmen.anahtar || iz.kapsam === String(kortNo);
+            if (!kapsamUyuyor) return false;
+            if (iz.tip === 'tarih' || iz.tip === 'aralik' || iz.tip === 'rutin') return true;
+            if (iz.tip === 'saatlik') {
+                const [, sBas, sBit] = (iz.deger || '').split('_');
+                return slotDk >= saatDakikaToDk(sBas) && slotDk < saatDakikaToDk(sBit);
+            }
+            return false;
+        });
+
+        if (hocaIzin) return hocaIzin.sebep || 'İzinli';
+        return null;
+    }
+
+    async function tabloyuCiz() {
+        const tbody = document.getElementById('tabloGövdesi');
+        if(!tbody) return;
+        const colSpan = window.alanSayisi + 1;
+        tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-5 text-muted fw-bold"><i class="fa-solid fa-spinner fa-spin me-2" style="color: var(--manu-teal);"></i>Program Yükleniyor...</td></tr>`;
+        
+        try {
+            const [rezRes, izinRes] = await Promise.all([ fetch(`/api/rezervasyon?tarih=${window.isoTarihFormat}`), fetch('/api/izinler') ]);
+            const dbKayitlar = await rezRes.json();
+            const kapaliKuralListesi = await izinRes.json();
+            
+            const kayitMap = {};
+            if(Array.isArray(dbKayitlar)) {
+                dbKayitlar.forEach(k => {
+                    const key = `${k.saat}_${k.alanId}`;
+                    if (!kayitMap[key]) kayitMap[key] = [];
+                    kayitMap[key].push(k);
+                });
+            }
+
+            tbody.innerHTML = ""; 
+            const bugunTarihi = bugunYerelTarihStr();
+            const isGecmisTarih = window.isoTarihFormat < bugunTarihi;
+            const guncelGunIndex = window.guncelTarih.getDay();
+
+            const aktifIzinler = Array.isArray(kapaliKuralListesi) ? kapaliKuralListesi.filter(iz => {
+                if (iz.tip === 'tarih') return iz.deger === window.isoTarihFormat;
+                if (iz.tip === 'aralik') {
+                    const [baslangic, bitis] = iz.deger.split('_');
+                    return window.isoTarihFormat >= baslangic && window.isoTarihFormat <= bitis;
+                }
+                if (iz.tip === 'saatlik') {
+                    const [izinTarih] = iz.deger.split('_');
+                    return izinTarih === window.isoTarihFormat;
+                }
+                if (iz.tip === 'rutin') return parseInt(iz.deger, 10) === guncelGunIndex;
+                return false;
+            }) : [];
+
+            window.saatler.forEach(saat => {
+                const saatInt = parseInt(saat.split(':')[0], 10);
+                let tr = document.createElement('tr');
+                tr.innerHTML = `<td class="time-cell">${saat}</td>`;
+                
+                for (let kort = 1; kort <= window.alanSayisi; kort++) {
+                    const egitmen = egitmenByKort(kort);
+                    let kortKapaliSebep = izinSebepBul(aktifIzinler, saat, egitmen, kort);
+
+                    if (!kortKapaliSebep) {
+                        const bas = parseInt(egitmen.baslangicSaati ?? 9, 10);
+                        const bit = parseInt(egitmen.bitisSaati ?? 22, 10);
+                        if (saatInt < bas || saatInt >= bit) {
+                            kortKapaliSebep = "Mesai Dışı";
+                        }
+                    }
+
+                    if (kortKapaliSebep) {
+                        let td = document.createElement('td');
+                        td.className = 'cell-closed shadow-sm';
+                        const ikon = kortKapaliSebep === "Mesai Dışı" ? "fa-clock" : "fa-ban";
+                        td.innerHTML = `<div class="h-100 w-100 d-flex flex-column justify-content-center align-items-center opacity-50"><i class="fa-solid ${ikon} mb-1"></i><span class="closed-title text-dark" style="font-size: 0.72rem;">${kortKapaliSebep}</span></div>`;
+                        tr.appendChild(td);
+                        continue; 
+                    }
+
+                    let slotKayitlari = kayitMap[`${saat}_${kort}`];
+                    if (slotKayitlari && slotKayitlari.length > 0) {
+                        let td = document.createElement('td');
+                        td.className = 'cell-full shadow-sm';
+                        const ilk = slotKayitlari[0];
+                        const grupMu = isGrupKayit(ilk);
+                        const bransKisa = kayitBransiniBul(ilk).replace(' Pilatesi', '').replace(' Pilates', '');
+                        const bransIkon = bransIkonHtml(ilk);
+
+                        if (grupMu) {
+                            const doluRenk = slotKayitlari.length >= GRUP_KAPASITE ? 'bg-danger' : 'bg-success';
+                            const isimlerHtml = slotKayitlari.map(k => {
+                                const notIkon = (k.musteriNotu && k.musteriNotu.trim())
+                                    ? `<i class="fa-solid fa-notes-medical text-danger ms-1" title="Sağlık / Eğitmen Notu Var"></i>`
+                                    : '';
+                                return `<span class="rez-name d-flex align-items-center" style="font-size: 0.75rem;">• ${isimFormatla(k.kisiAdi)} ${cinsiyetIkonHtml(k.cinsiyet, true)}${notIkon}</span>`;
+                            }).join('');
+                            td.innerHTML = `
+                                <div class="h-100 w-100 p-1 text-start">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="badge ${doluRenk}" style="font-size: 0.65rem;">Grup ${slotKayitlari.length}/${GRUP_KAPASITE}</span>
+                                        <span class="text-dark fw-semibold" style="font-size: 0.65rem;">${bransIkon}${bransKisa}</span>
+                                    </div>
+                                    ${isimlerHtml}
+                                </div>`;
+                        } else {
+                            const notIkon = (ilk.musteriNotu && ilk.musteriNotu.trim())
+                                ? `<i class="fa-solid fa-notes-medical text-danger ms-1" title="Sağlık / Eğitmen Notu Var"></i>`
+                                : '';
+                            td.innerHTML = `
+                                <div class="h-100 w-100 p-1 text-start">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="badge" style="background-color: var(--manu-teal-light); font-size: 0.62rem;">Özel</span>
+                                        <span class="text-dark fw-semibold" style="font-size: 0.65rem;">${bransIkon}${bransKisa}</span>
+                                    </div>
+                                    <span class="rez-name d-flex align-items-center fw-bold" style="font-size: 0.78rem;">${isimFormatla(ilk.kisiAdi)} ${cinsiyetIkonHtml(ilk.cinsiyet, true)}${notIkon}</span>
+                                </div>`;
+                        }
+                        td.addEventListener('click', () => window.detayModalAc(slotKayitlari, kort, saat));
+                        tr.appendChild(td);
+                    } else {
+                        let td = document.createElement('td');
+                        td.className = 'cell-empty';
+                        const gecmisSaat = slotGecmisSaatMi(window.isoTarihFormat, saat);
+                        if (isGecmisTarih || gecmisSaat) {
+                            td.style.cursor = "not-allowed";
+                            td.style.backgroundColor = "#f8f9fa";
+                            td.innerHTML = `<div class="w-100 h-100 d-flex justify-content-center align-items-center opacity-25"><i class="fa-solid fa-ban text-muted"></i></div>`;
+                        } else {
+                            td.innerHTML = `<button type="button" class="btn btn-sm btn-link p-0 w-100 h-100 shadow-none border-0" style="color: var(--manu-teal);"><i class="fa-solid fa-plus fs-5"></i></button>`;
+                            td.addEventListener('click', () => window.ekleModalAc(kort, saat));
+                        }
+                        tr.appendChild(td);
+                    }
+                }
+                tbody.appendChild(tr);
+            });
+        } catch (err) { tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-5 text-danger fw-bold"><i class="fa-solid fa-triangle-exclamation me-2"></i>Veritabanı bağlantı hatası!</td></tr>`; }
+    }
+
+    window.ekleModalAc = function(kortNo, saat, sabitTur = null, sabitGunler = null, mevcutKisi = 0) {
+        if (slotGecmisSaatMi(window.isoTarihFormat, saat)) {
+            alert("Bugün için geçmiş saate ders kaydı açılamaz.");
+            return;
+        }
+
+        window.mevcutGrupKisiSayisi = mevcutKisi || 0;
+        document.getElementById('duzenleTasimaAlani').classList.add('d-none');
+        document.getElementById('editKayitId').value = ""; 
+        document.getElementById('kayitSaat').value = saat;
+        document.getElementById('kayitKort').value = kortNo;
+        document.getElementById('kayitAdi').value = ""; 
+        document.getElementById('kayitTelefon').value = "";
+        document.getElementById('kayitCinsiyet').value = "kadin";
+        document.getElementById('kayitPaket').value = "1";
+        document.getElementById('paketSecimAlani').classList.remove('d-none');
+        document.getElementById('gunSecimKutusu').classList.add('d-none');
+
+        const bugunGun = window.guncelTarih.getDay();
+        const gunAdlari = { 1: 'Pzt', 2: 'Sal', 3: 'Çar', 4: 'Per', 5: 'Cum', 6: 'Cmt' };
+        const gunNotu = document.getElementById('gunSecimNotu');
+        const gecerliSabitGunler = (sabitGunler || []).filter(g => g >= 1 && g <= 6);
+
+        if (gecerliSabitGunler.length > 0) {
+            document.querySelectorAll('.gun-secim-btn').forEach(cb => {
+                const val = parseInt(cb.value);
+                cb.checked = gecerliSabitGunler.includes(val);
+                cb.disabled = true;
+            });
+            const gunMetni = gecerliSabitGunler.sort().map(g => gunAdlari[g]).join(', ');
+            gunNotu.innerHTML = `<strong style="color: var(--manu-teal);">* Bu grubun ders günleri sabitlendi: ${gunMetni}</strong>`;
+        } else {
+            document.querySelectorAll('.gun-secim-btn').forEach(cb => {
+                const val = parseInt(cb.value);
+                cb.checked = (val === bugunGun);
+                cb.disabled = (val === bugunGun);
+            });
+            gunNotu.innerText = "* Seçilen günlerde doluluk veya izin varsa kayıt yapılmaz ve detay gösterilir.";
+        }
+
+        const egitmen = egitmenByKort(kortNo);
+        document.getElementById('kaydetBtn').innerHTML = '<i class="fa-solid fa-check-double me-2"></i> KAYDET';
+        document.getElementById('rezModalBaslik').innerHTML = '<i class="fa-solid fa-calendar-plus me-2" style="color: var(--manu-gold);"></i>Yeni Ders Kaydı';
+        
+        document.getElementById('modalKortBadge').innerText = egitmen.adSoyad;
+        document.getElementById('modalSaatBadge').innerText = 'Saat: ' + saat;
+        document.getElementById('modalTarihMetni').innerText = document.getElementById('gosterilenTarih').innerText;
+        
+        const bransSelect = document.getElementById('kayitBrans');
+        const grupRadio = document.getElementById('formatGrup');
+        const ozelRadio = document.getElementById('formatOzel');
+
+        if (sabitTur) {
+            const ornekKayit = { rezervasyonTuru: sabitTur };
+            bransSelect.value = kayitBransiniBul(ornekKayit);
+            const sabitFormat = kayitFormatiniBul(ornekKayit);
+            seciliFormatAta(sabitFormat);
+            bransSelect.disabled = true;
+            grupRadio.disabled = true;
+            ozelRadio.disabled = true;
+        } else {
+            bransSelect.value = 'Reformer Pilates';
+            seciliFormatAta('grup');
+            bransSelect.disabled = false;
+            grupRadio.disabled = false;
+            ozelRadio.disabled = false;
+        }
+
+        const uzmanSelect = document.getElementById('kayitUzman');
+        uzmanSelect.value = egitmen.anahtar;
+        uzmanSelect.disabled = true;
+
+        grupUyeleriSifirla();
+
+        if(window.myModal) window.myModal.show();
+    };
+
+    window.detayModalAc = function(kayitlar, kortNo, saat) {
+        window.aktifSlotKayitlari = kayitlar; 
+        const ilk = kayitlar[0];
+        const grupMu = isGrupKayit(ilk);
+        const egitmen = egitmenByKort(kortNo);
+
+        document.getElementById('detayModalBaslik').innerHTML = grupMu
+            ? `<i class="fa-solid fa-users me-2" style="color: var(--manu-gold);"></i>Grup Dersi (${kayitlar.length}/${GRUP_KAPASITE})`
+            : `<i class="fa-solid fa-circle-info me-2" style="color: var(--manu-gold);"></i>Ders Detayı`;
+
+        document.getElementById('detayKortBadge').innerText = egitmen.adSoyad;
+        document.getElementById('detaySaatBadge').innerText = 'Saat: ' + saat;
+        document.getElementById('detayTarihMetni').innerText = document.getElementById('gosterilenTarih').innerText;
+
+        const bugunTarihi = bugunYerelTarihStr();
+        const isGecmis = window.isoTarihFormat < bugunTarihi;
+
+        const listeDiv = document.getElementById('detayUyeListesi');
+        listeDiv.innerHTML = '';
+
+        kayitlar.forEach((k, idx) => {
+            const [yil, ay, gun] = (k.tarih || window.isoTarihFormat).split('-');
+            const konumLinki = `${window.location.origin}/konum`;
+            const wpMesaj = `Sayın ${isimFormatla(k.kisiAdi)},\n\n${gun}.${ay}.${yil} tarihi saat ${k.saat} için Büşra Pilates Center Keçiören'de bulunan ${k.rezervasyonTuru} dersinizi hatırlatmak isteriz.\n\n📍 Konum: ${konumLinki}\n\nSağlıklı günler dileriz.`;
+            const wpLink = mmWpLink(k.telefon, wpMesaj);
+
+            const wpButonu = wpLink
+                ? `<a href="${wpLink}" target="_blank" class="btn btn-sm btn-success fw-bold" title="WhatsApp Mesajı Gönder"><i class="fa-brands fa-whatsapp"></i></a>`
+                : '';
+
+            const butonlar = isGecmis ? '' : `
+                <div class="d-flex gap-1 mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-warning fw-bold flex-fill" onclick="window.kayitDuzenleModunaGec(${idx})"><i class="fa-solid fa-pen me-1"></i> Düzenle</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger fw-bold flex-fill" onclick="window.kayitSilOnay(${idx})"><i class="fa-solid fa-trash-can me-1"></i> İptal Et</button>
+                    ${wpButonu}
+                </div>`;
+
+            const erkekMi = (k.cinsiyet || 'kadin') === 'erkek';
+            const cinsiyetRozet = erkekMi
+                ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1"><i class="fa-solid fa-mars me-1"></i>Erkek</span>`
+                : `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1"><i class="fa-solid fa-venus me-1"></i>Kadın</span>`;
+
+            const profilLinkHtml = k.musteriId
+                ? `<a href="/uye/${k.musteriId}" class="fs-6 fw-bold text-decoration-none" style="color: var(--manu-teal);" title="Üye Profilini Aç"><i class="fa-solid fa-user me-1"></i> ${isimFormatla(k.kisiAdi)} <i class="fa-solid fa-arrow-up-right-from-square ms-1" style="font-size: 0.7rem; opacity: 0.6;"></i></a>`
+                : `<strong class="fs-6" style="color: var(--manu-teal);"><i class="fa-solid fa-user me-1"></i> ${isimFormatla(k.kisiAdi)}</strong>`;
+
+            const temizNot = (k.musteriNotu || '').trim().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const notKutusu = temizNot
+                ? `<div class="mt-2 p-2 rounded-2 small" style="background-color: #fff3cd; border-left: 3px solid #ffc107; color: #664d03;">
+                       <i class="fa-solid fa-notes-medical me-1 text-danger"></i><strong>Not:</strong> ${temizNot}
+                   </div>`
+                : '';
+
+            listeDiv.innerHTML += `
+                <div class="p-3 bg-light rounded-3 border">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center flex-wrap gap-1">
+                            ${profilLinkHtml}
+                            ${cinsiyetRozet}
+                        </div>
+                        <span class="badge bg-white text-dark border">${k.telefon || '-'}</span>
+                    </div>
+                    <small class="text-muted d-block mt-1">${bransIkonHtml(k)}${k.rezervasyonTuru}</small>
+                    ${notKutusu}
+                    ${butonlar}
+                </div>`;
+        });
+
+        const grubaEkleBtn = document.getElementById('grubaEkleBtn');
+        if (grupMu && !isGecmis && kayitlar.length < GRUP_KAPASITE) {
+            grubaEkleBtn.classList.remove('d-none');
+            grubaEkleBtn.onclick = async () => {
+                grubaEkleBtn.disabled = true;
+                grubaEkleBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Grup Günleri Kontrol Ediliyor...';
+
+                const grupGunleriSet = new Set([window.guncelTarih.getDay()]);
+                try {
+                    const res = await fetch('/api/rezervasyon?tarih=hepsi');
+                    if (res.ok) {
+                        const tumKayitlar = await res.json();
+                        const gruptakiUyeler = new Set(kayitlar.map(k => k.kisiAdi.toLocaleLowerCase('tr-TR')));
+                        const aktifFormat = kayitFormatiniBul(ilk);
+
+                        tumKayitlar.forEach(k => {
+                            if (
+                                parseInt(k.alanId) === kortNo &&
+                                k.saat === saat &&
+                                kayitBransiniBul(k) === kayitBransiniBul(ilk) &&
+                                kayitFormatiniBul(k) === aktifFormat &&
+                                k.tarih >= window.isoTarihFormat &&
+                                gruptakiUyeler.has((k.kisiAdi || '').toLocaleLowerCase('tr-TR'))
+                            ) {
+                                const [y, m, d] = k.tarih.split('-').map(Number);
+                                grupGunleriSet.add(new Date(y, m - 1, d).getDay());
+                            }
+                        });
+                    }
+                } catch (e) {}
+
+                grubaEkleBtn.disabled = false;
+                grubaEkleBtn.innerHTML = '<i class="fa-solid fa-user-plus me-2"></i> BU GRUBA YENİ ÜYE EKLE';
+
+                if (window.detayModal) window.detayModal.hide();
+                window.ekleModalAc(kortNo, saat, ilk.rezervasyonTuru, Array.from(grupGunleriSet), kayitlar.length);
+            };
+        } else {
+            grubaEkleBtn.classList.add('d-none');
+        }
+
+        if(window.detayModal) window.detayModal.show();
+    };
+
+    window.kayitDuzenleModunaGec = function(idx) {
+        if(window.detayModal) window.detayModal.hide(); 
+        const kayit = window.aktifSlotKayitlari[idx];
+        window.mevcutGrupKisiSayisi = 0;
+        document.getElementById('editKayitId').value = kayit.id; 
+        document.getElementById('kayitSaat').value = kayit.saat;
+        const kortNo = parseInt(kayit.alanId);
+        document.getElementById('kayitKort').value = kortNo;
+        document.getElementById('kayitAdi').value = isimFormatla(kayit.kisiAdi);
+        document.getElementById('kayitTelefon').value = kayit.telefon || "";
+        document.getElementById('kayitCinsiyet').value = kayit.cinsiyet || "kadin";
+        grupUyeleriSifirla();
+        
+        const bransSelect = document.getElementById('kayitBrans');
+        const grupRadio = document.getElementById('formatGrup');
+        const ozelRadio = document.getElementById('formatOzel');
+        bransSelect.value = kayitBransiniBul(kayit);
+        seciliFormatAta(kayitFormatiniBul(kayit));
+        const kilitli = window.aktifSlotKayitlari.length > 1;
+        bransSelect.disabled = kilitli;
+        grupRadio.disabled = kilitli;
+        ozelRadio.disabled = kilitli;
+
+        const egitmen = egitmenByAnahtar(kayit.notlar) || egitmenByKort(kortNo);
+        const uzmanSelect = document.getElementById('kayitUzman');
+        uzmanSelect.value = egitmen.anahtar;
+        uzmanSelect.disabled = (window.aktifRol !== 'yonetici');
+
+        document.getElementById('duzenleTarih').value = kayit.tarih;
+        const saatSelect = document.getElementById('duzenleSaat');
+        saatSelect.innerHTML = window.saatler.map(s => `<option value="${s}" ${s === kayit.saat ? 'selected' : ''}>${s}</option>`).join('');
+        document.getElementById('duzenleTasimaAlani').classList.remove('d-none');
+
+        document.getElementById('paketSecimAlani').classList.add('d-none');
+        
+        document.getElementById('modalKortBadge').innerText = egitmen.adSoyad;
+        document.getElementById('modalSaatBadge').innerText = 'Saat: ' + kayit.saat;
+        document.getElementById('modalTarihMetni').innerText = document.getElementById('gosterilenTarih').innerText;
+
+        document.getElementById('rezModalBaslik').innerHTML = '<i class="fa-solid fa-pen-to-square me-2" style="color: var(--manu-gold);"></i>Dersi Düzenle / Taşı';
+        document.getElementById('kaydetBtn').innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i> GÜNCELLE';
+        
+        if(window.myModal) window.myModal.show(); 
+    };
+
+    window.kayitSilOnay = function(idx) {
+        const kayit = window.aktifSlotKayitlari[idx];
+        if (!kayit) return;
+
+        if (window.detayModal) window.detayModal.hide();
+
+        document.getElementById('iptalUyeBilgi').innerText = `${isimFormatla(kayit.kisiAdi)} — ${kayit.tarih} / ${kayit.saat}`;
+
+        const [y, m, d] = kayit.tarih.split('-').map(Number);
+        const [saatNum, dkNum] = kayit.saat.split(':').map(Number);
+        const dersZamani = new Date(y, m - 1, d, saatNum, dkNum || 0);
+        const kalanSaat = Math.round((dersZamani.getTime() - Date.now()) / (1000 * 60 * 60));
+
+        const uyariDiv = document.getElementById('iptal12SaatUyari');
+        const hakSelect = document.getElementById('iptalHakSecim');
+        const telafiOpt = hakSelect.querySelector('option[value="telafi"]');
+
+        if (kayit.seriId) {
+            document.getElementById('iptalSeriAlani').classList.remove('d-none');
+            telafiOpt.disabled = false;
+            telafiOpt.hidden = false;
+        } else {
+            document.getElementById('iptalSeriAlani').classList.add('d-none');
+            telafiOpt.disabled = true;
+            telafiOpt.hidden = true;
+        }
+
+        document.getElementById('iptalKapsam').value = 'tek';
+        document.getElementById('iptalHakAlani').classList.remove('d-none');
+
+        if (kalanSaat >= 12) {
+            uyariDiv.className = 'alert alert-success py-2 small fw-bold mb-3';
+            uyariDiv.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i> Derse ${kalanSaat} saat var (12 saat kuralına uygun). Hak iadesi veya telafi önerilir.`;
+            hakSelect.value = kayit.seriId ? 'telafi' : 'evet';
+        } else {
+            uyariDiv.className = 'alert alert-warning py-2 small fw-bold mb-3';
+            uyariDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-1"></i> Derse 12 saatten az kaldı (${Math.max(0, kalanSaat)} saat). Kural gereği ders hakkı yanabilir.`;
+            hakSelect.value = 'hayir';
+        }
+
+        document.getElementById('iptalKapsam').onchange = function() {
+            const hakAlani = document.getElementById('iptalHakAlani');
+            if (this.value === 'seri') hakAlani.classList.add('d-none');
+            else hakAlani.classList.remove('d-none');
+        };
+
+        const iptalModalEl = document.getElementById('iptalModal');
+        const iptalModalInst = bootstrap.Modal.getOrCreateInstance(iptalModalEl);
+        iptalModalInst.show();
+
+        const onaylaBtn = document.getElementById('iptalOnaylaBtn');
+        onaylaBtn.onclick = async () => {
+            const kapsam = kayit.seriId ? document.getElementById('iptalKapsam').value : 'tek';
+            const hakIade = kapsam === 'seri' ? 'hayir' : document.getElementById('iptalHakSecim').value;
+
+            onaylaBtn.disabled = true;
+            onaylaBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> İŞLENİYOR...';
+
+            try {
+                const response = await fetch(`/api/rezervasyon?id=${kayit.id}&kapsam=${kapsam}&hakIade=${hakIade}`, { method: 'DELETE' });
+                const sonuc = await response.json();
+
+                if (response.ok) {
+                    iptalModalInst.hide();
+                    await tabloyuCiz();
+
+                    const [yil, ay, gun] = kayit.tarih.split('-');
+                    const telafiNotu = sonuc.telafiTarih ? `\nTelafi dersiniz ${sonuc.telafiTarih} tarihine planlanmıştır.` : '';
+                    const iptalMesaji = `Sayın ${isimFormatla(kayit.kisiAdi)},\n\n${gun}.${ay}.${yil} tarihi saat ${kayit.saat} için Büşra Pilates Center Keçiören'de bulunan dersiniz iptal edilmiştir.${telafiNotu}\n\nSağlıklı günler dileriz.`;
+                    const wpLink = mmWpLink(kayit.telefon, iptalMesaji);
+
+                    if (typeof Swal !== 'undefined') {
+                        const ozet = kapsam === 'seri'
+                            ? 'Bu ve sonraki tüm paket dersleri iptal edildi.'
+                            : (sonuc.telafiTarih ? `Ders iptal edildi. Telafi dersi otomatik olarak ${sonuc.telafiTarih} tarihine eklendi.` : 'Ders iptal edildi.');
+                        Swal.fire({
+                            title: 'İptal Edildi',
+                            text: ozet,
+                            icon: 'success',
+                            showCancelButton: !!wpLink,
+                            confirmButtonText: 'Tamam',
+                            confirmButtonColor: '#6B4C63',
+                            cancelButtonText: '<i class="fa-brands fa-whatsapp me-1"></i> WhatsApp ile Bildir',
+                            cancelButtonColor: '#25D366'
+                        }).then((res) => {
+                            if (res.dismiss === Swal.DismissReason.cancel && wpLink) {
+                                window.open(wpLink, '_blank');
+                            }
+                        });
+                    }
+                } else {
+                    alert(sonuc.error || "Hata oluştu.");
+                }
+            } catch (e) {
+                alert("Sunucu hatası.");
+            } finally {
+                onaylaBtn.disabled = false;
+                onaylaBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i> İPTALİ ONAYLA';
+            }
+        };
+    };
+</script>
+
+<div class="modal fade" id="sifreModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header text-white rounded-top-4" style="background-color: var(--manu-teal);">
+                <h6 class="modal-title fw-bold"><i class="fa-solid fa-key me-2"></i>Şifre Değiştir</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="sifreFormu">
+                    <div class="mb-3">
+                        <input type="password" id="eskiSifre" class="form-control" placeholder="Mevcut Şifreniz" required>
+                    </div>
+                    <div class="mb-3">
+                        <input type="password" id="yeniSifre" class="form-control" placeholder="Yeni Şifre" required minlength="6">
+                    </div>
+                    <button type="submit" id="sifreKaydetBtn" class="btn btn-manu w-100 fw-bold">GÜNCELLE</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script is:inline>
+    document.addEventListener("DOMContentLoaded", function() {
+        const sifreFormu = document.getElementById('sifreFormu');
+        if(sifreFormu) {
+            sifreFormu.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('sifreKaydetBtn');
+                btn.innerHTML = 'BEKLEYİN...'; btn.disabled = true;
+                
+                const res = await fetch('/api/sifre-degistir', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        eskiSifre: document.getElementById('eskiSifre').value,
+                        yeniSifre: document.getElementById('yeniSifre').value
+                    })
+                });
+                
+                if(res.ok) {
+                    alert("Şifreniz başarıyla değiştirildi! Lütfen yeni şifrenizle tekrar giriş yapın.");
+                    await fetch('/api/logout', { method: 'POST' });
+                    window.location.reload();
+                } else {
+                    const data = await res.json();
+                    alert(data.error);
+                    btn.innerHTML = 'GÜNCELLE'; btn.disabled = false;
+                }
+            });
+        }
+    });
+</script>

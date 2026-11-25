@@ -1,0 +1,892 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { decodeJwt } from 'jose';
+
+const token = Astro.cookies.get('auth_token')?.value;
+
+if (!token) {
+    return Astro.redirect('/');
+}
+
+// Güvenlik: Sadece YÖNETİCİ girebilir
+try {
+    const decoded = decodeJwt(token);
+    if (decoded.rol !== 'yonetici') {
+        return Astro.redirect('/');
+    }
+} catch (error) {
+    return Astro.redirect('/');
+}
+---
+
+<Layout title="Stüdyo İstatistikleri | Büşra Pilates Center Keçiören">
+
+    <style is:global>
+        :root {
+            --manu-teal: #6B4C63;        /* Kurumsal Mürdüm */
+            --manu-teal-light: #9E6B8E;  /* Yumuşak Lila/Mürdüm */
+            --manu-gold: #E563B1;        /* Canlı Gül Pembe */
+            --manu-bg: #FDF5FA;          /* Çok Açık Pudra */
+        }
+        
+        select {
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            appearance: none !important;
+            background-image: none !important;
+        }
+        select::-ms-expand { display: none !important; }
+    </style>
+
+    <div class="text-white p-2 d-flex justify-content-between align-items-center" style="background-color: #3d2838; border-bottom: 3px solid var(--manu-gold);">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i class="fa-solid fa-chart-pie me-2" style="color: var(--manu-gold);"></i> STÜDYO PERFORMANS VE İSTATİSTİK PANOSU</span>
+            <a href="/" class="btn btn-sm btn-outline-light"><i class="fa-solid fa-arrow-left me-1"></i> Panele Dön</a>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        
+        <!-- FİLTRELEME VE İNDİRME ÇUBUĞU -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm border-start border-4 rounded-4 bg-white p-3 d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-3" style="border-color: var(--manu-teal) !important;">
+                    <div class="d-flex align-items-center flex-wrap gap-3">
+                        
+                        <!-- TARİH FİLTRESİ -->
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-muted small text-nowrap"><i class="fa-solid fa-calendar-day me-1"></i> Tarih:</span>
+                            <select id="zamanFiltresi" class="form-select form-select-sm w-auto fw-bold shadow-sm border-secondary">
+                                <option value="hepsi">Tüm Zamanlar</option>
+                                <option value="buAy">Bu Ay</option>
+                                <option value="gecenAy">Geçen Ay</option>
+                                <option value="son7">Son 7 Gün</option>
+                                <option value="ozel">Özel Tarih Aralığı...</option>
+                            </select>
+                        </div>
+                        
+                        <!-- ÖZEL TARİH SEÇİCİ -->
+                        <div id="ozelTarihAlan" class="d-none align-items-center gap-2">
+                            <input type="date" id="baslangicTarih" class="form-control form-control-sm border-secondary">
+                            <span class="text-muted fw-bold">-</span>
+                            <input type="date" id="bitisTarih" class="form-control form-control-sm border-secondary">
+                            <button id="ozelTarihUygula" class="btn btn-sm text-white fw-bold px-3" style="background-color: var(--manu-teal);">Uygula</button>
+                        </div>
+
+                        <!-- DURUM FİLTRESİ (TÜMÜ / TAMAMLANAN / GELECEK) -->
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-muted small text-nowrap"><i class="fa-solid fa-clock-rotate-left me-1"></i> Durum:</span>
+                            <select id="durumFiltresi" class="form-select form-select-sm w-auto fw-bold shadow-sm border-secondary">
+                                <option value="hepsi">Tümü</option>
+                                <option value="tamamlanan">Tamamlanan Dersler</option>
+                                <option value="gelecek">Gelecek Dersler</option>
+                            </select>
+                        </div>
+
+                        <!-- EĞİTMEN FİLTRESİ -->
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-muted small text-nowrap"><i class="fa-solid fa-user-tie me-1"></i> Eğitmen:</span>
+                            <select id="uzmanFiltresi" class="form-select form-select-sm w-auto fw-bold shadow-sm border-secondary">
+                                <option value="hepsi">Tüm Eğitmenler</option>
+                            </select>
+                        </div>
+
+                        <!-- DERS TÜRÜ FİLTRESİ -->
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-muted small text-nowrap"><i class="fa-solid fa-dumbbell me-1"></i> Ders Türü:</span>
+                            <select id="turFiltresi" class="form-select form-select-sm w-auto fw-bold shadow-sm border-secondary">
+                                <option value="hepsi">Tüm Dersler</option>
+                                <option value="Reformer Pilates Grup Ders">Reformer Grup</option>
+                                <option value="Reformer Pilates Özel Ders">Reformer Özel</option>
+                                <option value="Hamile Pilatesi">Hamile Pilatesi</option>
+                                <option value="Mat Pilates">Mat Pilates</option>
+                            </select>
+                        </div>
+
+                        <!-- FORMAT FİLTRESİ (GRUP / ÖZEL) -->
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-muted small text-nowrap"><i class="fa-solid fa-layer-group me-1"></i> Format:</span>
+                            <select id="formatFiltresi" class="form-select form-select-sm w-auto fw-bold shadow-sm border-secondary">
+                                <option value="hepsi">Tümü</option>
+                                <option value="grup">Grup Dersi</option>
+                                <option value="ozel">Özel Ders</option>
+                            </select>
+                        </div>
+
+                        <!-- CİNSİYET FİLTRESİ -->
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-muted small text-nowrap"><i class="fa-solid fa-venus-mars me-1"></i> Cinsiyet:</span>
+                            <select id="cinsiyetFiltresi" class="form-select form-select-sm w-auto fw-bold shadow-sm border-secondary">
+                                <option value="hepsi">Tümü</option>
+                                <option value="kadin">Kadın</option>
+                                <option value="erkek">Erkek</option>
+                            </select>
+                        </div>
+
+                    </div>
+
+                    <button id="csvIndirBtn" class="btn btn-sm text-white fw-bold px-3 shadow-sm text-nowrap flex-shrink-0" style="background-color: var(--manu-teal);" onclick="window.csvIndir()">
+                        <i class="fa-solid fa-file-excel me-1"></i> Excel/CSV İndir
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ÜST ÖZET KARTLARI -->
+        <div class="row g-3 mb-3">
+            <!-- 1. Toplam Ders -->
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0 rounded-4 text-white h-100" style="background-color: #3d2838;">
+                    <div class="card-body">
+                        <h6 class="text-uppercase mb-2" style="opacity: 0.8;"><i class="fa-solid fa-calendar-check me-2"></i>Toplam Ders</h6>
+                        <h2 class="display-5 fw-bold mb-0" id="totalRez">0</h2>
+                        <div class="mt-2 small" style="opacity: 0.9;"><i class="fa-solid fa-fire me-1" style="color: var(--manu-gold);"></i> En Yoğun: <span id="peakHour" class="fw-bold">-</span></div>
+                    </div>
+                </div>
+            </div>
+            <!-- 2. Reformer Grup -->
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0 rounded-4 text-white h-100" style="background-color: var(--manu-teal);">
+                    <div class="card-body">
+                        <h6 class="text-uppercase mb-2" style="opacity: 0.85;"><i class="fa-solid fa-users me-2"></i>Reformer Grup</h6>
+                        <h2 class="display-5 fw-bold mb-0" id="totalGrup">0</h2>
+                        <div class="mt-2 small" style="opacity: 0.9;">
+                            Payı: <span id="yuzdeGrup" class="fw-bold badge bg-white ms-1" style="color: var(--manu-teal);">%0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 3. Reformer Özel -->
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0 rounded-4 text-white h-100" style="background-color: var(--manu-teal-light);">
+                    <div class="card-body">
+                        <h6 class="text-uppercase mb-2" style="opacity: 0.85;"><i class="fa-solid fa-star me-2"></i>Reformer Özel</h6>
+                        <h2 class="display-5 fw-bold mb-0" id="totalOzel">0</h2>
+                        <div class="mt-2 small" style="opacity: 0.9;">
+                            Payı: <span id="yuzdeOzel" class="fw-bold badge bg-white ms-1" style="color: var(--manu-teal-light);">%0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 4. Hamile & Mat -->
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0 rounded-4 text-white h-100" style="background-color: var(--manu-gold);">
+                    <div class="card-body">
+                        <h6 class="text-uppercase mb-2" style="opacity: 0.9;"><i class="fa-solid fa-spa me-2"></i>Hamile & Mat</h6>
+                        <h2 class="display-5 fw-bold mb-0" id="totalDiger">0</h2>
+                        <div class="mt-2 small" style="opacity: 0.95;">
+                            Payı: <span id="yuzdeDiger" class="fw-bold badge bg-white ms-1" style="color: var(--manu-gold);">%0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DURUM ÖZET ŞERİDİ (TAMAMLANAN VS GELECEK) -->
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 rounded-4 bg-white border-start border-4 border-success">
+                    <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small text-muted fw-bold text-uppercase"><i class="fa-solid fa-circle-check me-1 text-success"></i> Tamamlanan Dersler</div>
+                            <div class="fs-3 fw-bold text-success" id="durumTamamlananSayi">0</div>
+                        </div>
+                        <span class="badge bg-success fs-6 px-3 py-2" id="durumTamamlananYuzde">%0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 rounded-4 bg-white border-start border-4 border-primary">
+                    <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small text-muted fw-bold text-uppercase"><i class="fa-solid fa-calendar-plus me-1 text-primary"></i> Gelecek Dersler</div>
+                            <div class="fs-3 fw-bold text-primary" id="durumGelecekSayi">0</div>
+                        </div>
+                        <span class="badge bg-primary fs-6 px-3 py-2" id="durumGelecekYuzde">%0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FORMAT ÖZET ŞERİDİ (GRUP VS ÖZEL) -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 rounded-4 bg-white border-start border-4" style="border-color: var(--manu-teal) !important;">
+                    <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small text-muted fw-bold text-uppercase"><i class="fa-solid fa-users me-1" style="color: var(--manu-teal);"></i> Toplam Grup Dersi</div>
+                            <div class="fs-3 fw-bold" style="color: var(--manu-teal);" id="formatGrupSayi">0</div>
+                        </div>
+                        <span class="badge fs-6 px-3 py-2" style="background-color: var(--manu-teal);" id="formatGrupYuzde">%0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 rounded-4 bg-white border-start border-4" style="border-color: var(--manu-gold) !important;">
+                    <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small text-muted fw-bold text-uppercase"><i class="fa-solid fa-user me-1" style="color: var(--manu-gold);"></i> Toplam Özel Ders</div>
+                            <div class="fs-3 fw-bold" style="color: var(--manu-gold);" id="formatOzelSayi">0</div>
+                        </div>
+                        <span class="badge fs-6 px-3 py-2" style="background-color: var(--manu-gold);" id="formatOzelYuzde">%0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- EĞİTMEN BAZLI PERFORMANS TABLOSU -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm border-0 rounded-4">
+                    <div class="card-header bg-white border-0 pt-4 pb-2">
+                        <h5 class="fw-bold m-0" style="color: var(--manu-teal);"><i class="fa-solid fa-user-tie me-2" style="color: var(--manu-gold);"></i>Eğitmen Ders Dağılımı</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 text-center">
+                                <thead class="table-light text-muted small text-uppercase">
+                                    <tr>
+                                        <th class="text-start ps-4">Eğitmen Adı</th>
+                                        <th>Reformer Grup</th>
+                                        <th>Reformer Özel</th>
+                                        <th>Hamile Pilatesi</th>
+                                        <th>Mat Pilates</th>
+                                        <th class="text-end pe-4">Toplam Ders</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uzmanTabloGovdesi">
+                                    <tr><td colspan="6" class="py-4 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i> Hesaplanıyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASTA GRAFİKLERİ -->
+        <div class="row">
+            <!-- 1. Eğitmen Dağılımı -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card shadow-sm border-0 rounded-4 h-100">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary fs-6"><i class="fa-solid fa-chart-pie me-2"></i>Eğitmen Dağılımı</h5>
+                    </div>
+                    <div class="card-body d-flex align-items-center justify-content-center">
+                        <div id="alanGrafik" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Ders Türü Dağılımı -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card shadow-sm border-0 rounded-4 h-100">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary fs-6"><i class="fa-solid fa-dumbbell me-2"></i>Ders Türü Dağılımı</h5>
+                    </div>
+                    <div class="card-body d-flex align-items-center justify-content-center">
+                        <div id="turGrafik" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Grup / Özel Format Dağılımı -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card shadow-sm border-0 rounded-4 h-100">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary fs-6"><i class="fa-solid fa-layer-group me-2"></i>Grup / Özel Oranı</h5>
+                    </div>
+                    <div class="card-body d-flex align-items-center justify-content-center">
+                        <div id="formatGrafik" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Tamamlanan / Gelecek Durum Dağılımı -->
+            <div class="col-md-6 col-xl-6 mb-4">
+                <div class="card shadow-sm border-0 rounded-4 h-100">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary fs-6"><i class="fa-solid fa-clock-rotate-left me-2"></i>Tamamlanan / Gelecek Oranı</h5>
+                    </div>
+                    <div class="card-body d-flex align-items-center justify-content-center">
+                        <div id="durumGrafik" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Cinsiyet Dağılımı -->
+            <div class="col-md-6 col-xl-6 mb-4">
+                <div class="card shadow-sm border-0 rounded-4 h-100">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary fs-6"><i class="fa-solid fa-venus-mars me-2"></i>Cinsiyet Dağılımı</h5>
+                    </div>
+                    <div class="card-body d-flex align-items-center justify-content-center">
+                        <div id="cinsiyetGrafik" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ORTA SATIR: SAATLİK YOĞUNLUK -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm border-0 rounded-4 h-100">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary"><i class="fa-solid fa-chart-column me-2"></i>Saatlik Yoğunluk Analizi</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="saatGrafik" style="width: 100%; min-height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ALT SATIR: HAFTANIN GÜNLERİ TREND GRAFİĞİ -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm border-0 rounded-4">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary"><i class="fa-solid fa-chart-line me-2"></i>Haftanın Günleri (Yoğunluk Trendi)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="haftaGrafik" style="width: 100%; min-height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- UZUN VADE TRENDLERİ (Sadece Tüm Zamanlar Seçildiğinde Görünür) -->
+        <div class="row mb-5" id="uzunVadeTrendleri" style="display: none;">
+            <div class="col-md-6 mb-4 mb-md-0">
+                <div class="card shadow-sm border-0 rounded-4 h-100">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary"><i class="fa-solid fa-calendar-week me-2"></i>Haftalık Yoğunluk (Yıl İçi)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="haftalikGrafik" style="width: 100%; min-height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 rounded-4 h-100">
+                    <div class="card-header bg-white border-0 pt-4 pb-0">
+                        <h5 class="fw-bold text-secondary"><i class="fa-solid fa-calendar-days me-2"></i>Aylık Yoğunluk</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="aylikGrafik" style="width: 100%; min-height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</Layout>
+
+<!-- ApexCharts CDN -->
+<script is:inline src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<script is:inline>
+    let tumVeriler = [];
+    let aktifFiltreliVeri = []; 
+    let tumEgitmenler = [];
+    let alanChartInst = null;
+    let turChartInst = null; 
+    let formatChartInst = null;
+    let durumChartInst = null;
+    let cinsiyetChartInst = null;
+    let saatChartInst = null;
+    let haftaChartInst = null; 
+    let aylikChartInst = null;     
+    let haftalikChartInst = null;  
+    
+    let dinamikSaatler = []; 
+    const guncelTarih = new Date();
+
+    function getIsoWeek(dateObj) {
+        const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+    }
+
+    function kayitFormatiniBul(k) {
+        if (k?.dersFormati === 'ozel' || k?.dersFormati === 'grup') return k.dersFormati;
+        const t = (k?.rezervasyonTuru || '').toLocaleLowerCase('tr-TR');
+        if (t.includes('özel') || t.includes('ozel')) return 'ozel';
+        return 'grup';
+    }
+
+    function kayitDurumunuBul(k) {
+        if (!k?.tarih) return 'gelecek';
+        const [yil, ay, gun] = String(k.tarih).split('-').map(Number);
+        if (!yil || !ay || !gun) return 'gelecek';
+
+        const [saatStr = '00', dkStr = '0'] = String(k.saat || '00:00').split(':');
+        const saat = parseInt(saatStr, 10) || 0;
+        const dk = parseInt(dkStr, 10) || 0;
+
+        const dersZamani = new Date(yil, ay - 1, gun, saat, dk, 0, 0);
+        return dersZamani.getTime() < Date.now() ? 'tamamlanan' : 'gelecek';
+    }
+
+    function egitmenFiltreDoldur(egitmenListesi) {
+        const select = document.getElementById('uzmanFiltresi');
+        if (!select) return;
+        const onceki = select.value;
+        select.innerHTML = '<option value="hepsi">Tüm Eğitmenler</option>' +
+            egitmenListesi.map(e => `<option value="${e.anahtar}">${e.adSoyad}${e.aktif ? '' : ' (Pasif)'}</option>`).join('');
+        if (onceki && Array.from(select.options).some(o => o.value === onceki)) {
+            select.value = onceki;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", async function() {
+        try {
+            try {
+                const ayarRes = await fetch('/api/ayarlar-api');
+                if (ayarRes.ok) {
+                    const ayar = await ayarRes.json();
+                    const baslangic = Math.max(6, parseInt(ayar.baslangicSaati || 9));
+                    const bitis = Math.min(24, parseInt(ayar.bitisSaati || 22));
+                    for (let i = baslangic; i < bitis; i++) {
+                        dinamikSaatler.push(i.toString().padStart(2, '0')); 
+                    }
+                }
+            } catch (err) {}
+            if (dinamikSaatler.length === 0) {
+                dinamikSaatler = ["09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"];
+            }
+
+            const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+            const mevcutAy = guncelTarih.getMonth();
+            
+            document.querySelector('#zamanFiltresi option[value="buAy"]').innerText = `Bu Ay (${aylar[mevcutAy]})`;
+            document.querySelector('#zamanFiltresi option[value="gecenAy"]').innerText = `Geçen Ay (${aylar[mevcutAy === 0 ? 11 : mevcutAy - 1]})`;
+
+            const [response, egRes] = await Promise.all([
+                fetch(`/api/rezervasyon?tarih=hepsi`),
+                fetch('/api/egitmenler')
+            ]);
+            tumVeriler = await response.json();
+            if (egRes.ok) {
+                const egData = await egRes.json();
+                tumEgitmenler = Array.isArray(egData) ? egData : [];
+            }
+            if (tumEgitmenler.length === 0) {
+                tumEgitmenler = [
+                    { id: 1, adSoyad: 'İlayda Hoca', anahtar: 'ilayda', renk: '#6B4C63', aktif: true },
+                    { id: 2, adSoyad: 'Esra Hoca', anahtar: 'esra', renk: '#9E6B8E', aktif: true },
+                    { id: 3, adSoyad: 'Büşra Hoca', anahtar: 'busra', renk: '#E563B1', aktif: true }
+                ];
+            }
+            egitmenFiltreDoldur(tumEgitmenler);
+
+            document.getElementById('uzmanFiltresi').value = 'hepsi';
+            document.getElementById('uzunVadeTrendleri').style.display = (document.getElementById('zamanFiltresi').value === 'hepsi') ? '' : 'none';
+            
+            grafikleriGuncelle(tumVeriler);
+
+            document.getElementById('zamanFiltresi').addEventListener('change', filtreUygula);
+            document.getElementById('durumFiltresi').addEventListener('change', filtreUygula);
+            document.getElementById('uzmanFiltresi').addEventListener('change', filtreUygula);
+            document.getElementById('turFiltresi').addEventListener('change', filtreUygula); 
+            document.getElementById('formatFiltresi').addEventListener('change', filtreUygula);
+            document.getElementById('cinsiyetFiltresi').addEventListener('change', filtreUygula);
+            document.getElementById('ozelTarihUygula').addEventListener('click', filtreUygula);
+
+        } catch (error) {
+            console.error("Veri çekme hatası:", error);
+        }
+    });
+
+    function hocaAnahtariBul(k) {
+        if (k.notlar) {
+            const eslesen = tumEgitmenler.find(e => e.anahtar === k.notlar);
+            if (eslesen) return eslesen.anahtar;
+        }
+        const odaNo = parseInt(k.alanId, 10) || 1;
+        const sirali = tumEgitmenler[odaNo - 1] || tumEgitmenler[0];
+        return sirali ? sirali.anahtar : 'ilayda';
+    }
+
+    function filtreUygula() {
+        const filtreTuru = document.getElementById('zamanFiltresi').value;
+        const durumTuru = document.getElementById('durumFiltresi').value;
+        const uzmanTuru = document.getElementById('uzmanFiltresi').value; 
+        const dersTuru = document.getElementById('turFiltresi').value; 
+        const formatTuru = document.getElementById('formatFiltresi').value;
+        const cinsiyetTuru = document.getElementById('cinsiyetFiltresi').value;
+        const ozelTarihAlan = document.getElementById('ozelTarihAlan');
+        
+        let filtrelenmis = [];
+
+        const trendlerAlan = document.getElementById('uzunVadeTrendleri');
+        trendlerAlan.style.display = (filtreTuru === 'hepsi') ? '' : 'none';
+
+        if (filtreTuru === 'ozel') {
+            ozelTarihAlan.classList.remove('d-none');
+            ozelTarihAlan.classList.add('d-flex');
+        } else {
+            ozelTarihAlan.classList.add('d-none');
+            ozelTarihAlan.classList.remove('d-flex');
+        }
+
+        if (filtreTuru === 'hepsi') {
+            filtrelenmis = tumVeriler;
+        } 
+        else if (filtreTuru === 'buAy') {
+            const ayKodu = String(guncelTarih.getMonth() + 1).padStart(2, '0');
+            const yilKodu = guncelTarih.getFullYear();
+            filtrelenmis = tumVeriler.filter(k => k.tarih.startsWith(`${yilKodu}-${ayKodu}`));
+        }
+        else if (filtreTuru === 'gecenAy') {
+            let gecenAy = guncelTarih.getMonth();
+            let yilKodu = guncelTarih.getFullYear();
+            if (gecenAy === 0) { gecenAy = 12; yilKodu -= 1; }
+            const ayKodu = String(gecenAy).padStart(2, '0');
+            filtrelenmis = tumVeriler.filter(k => k.tarih.startsWith(`${yilKodu}-${ayKodu}`));
+        }
+        else if (filtreTuru === 'son7') {
+            const yediGunOnce = new Date();
+            yediGunOnce.setDate(yediGunOnce.getDate() - 7);
+            filtrelenmis = tumVeriler.filter(k => {
+                const kayitTarihi = new Date(k.tarih);
+                return kayitTarihi >= yediGunOnce && kayitTarihi <= guncelTarih;
+            });
+        }
+        else if (filtreTuru === 'ozel') {
+            const bas = document.getElementById('baslangicTarih').value;
+            const bit = document.getElementById('bitisTarih').value;
+            if(!bas || !bit) return; 
+            const basTarih = new Date(bas);
+            const bitTarih = new Date(bit);
+            filtrelenmis = tumVeriler.filter(k => {
+                const kayitTarihi = new Date(k.tarih);
+                return kayitTarihi >= basTarih && kayitTarihi <= bitTarih;
+            });
+        }
+
+        if (durumTuru !== 'hepsi') {
+            filtrelenmis = filtrelenmis.filter(k => kayitDurumunuBul(k) === durumTuru);
+        }
+
+        if (uzmanTuru !== 'hepsi') {
+            filtrelenmis = filtrelenmis.filter(k => hocaAnahtariBul(k) === uzmanTuru);
+        }
+
+        if (dersTuru !== 'hepsi') {
+            filtrelenmis = filtrelenmis.filter(k => k.rezervasyonTuru === dersTuru);
+        }
+
+        if (formatTuru !== 'hepsi') {
+            filtrelenmis = filtrelenmis.filter(k => kayitFormatiniBul(k) === formatTuru);
+        }
+
+        if (cinsiyetTuru !== 'hepsi') {
+            filtrelenmis = filtrelenmis.filter(k => (k.cinsiyet || 'kadin') === cinsiyetTuru);
+        }
+
+        grafikleriGuncelle(filtrelenmis);
+    }
+
+    function grafikleriGuncelle(veriSeti) {
+        aktifFiltreliVeri = JSON.parse(JSON.stringify(veriSeti)); 
+
+        let grupSay = 0; let ozelSay = 0; let hamileSay = 0; let matSay = 0;
+        let formatGrupSay = 0; let formatOzelSay = 0;
+        let tamamlananSay = 0; let gelecekSay = 0;
+        
+        const alanSayaci = {};
+        const cinsiyetSayaci = { kadin: 0, erkek: 0 };
+        const saatSayaci = {};
+        const haftaninGunleri = [0, 0, 0, 0, 0, 0, 0]; 
+        const aylikSayac = new Array(12).fill(0);
+        const haftalikSayac = new Array(53).fill(0);
+
+        const uzmanData = {};
+        tumEgitmenler.forEach(eg => {
+            alanSayaci[eg.anahtar] = 0;
+            uzmanData[eg.anahtar] = { ad: eg.adSoyad, renk: eg.renk || '#6B4C63', grup: 0, ozel: 0, hamile: 0, mat: 0 };
+        });
+
+        veriSeti.forEach(k => {
+            const hocaKey = hocaAnahtariBul(k);
+            if (!uzmanData[hocaKey]) {
+                uzmanData[hocaKey] = { ad: hocaKey, renk: '#6B4C63', grup: 0, ozel: 0, hamile: 0, mat: 0 };
+            }
+            const tur = (k.rezervasyonTuru || "").toLowerCase();
+            const format = kayitFormatiniBul(k);
+            const durum = kayitDurumunuBul(k);
+
+            if (durum === 'tamamlanan') tamamlananSay++;
+            else gelecekSay++;
+
+            if (format === 'ozel') formatOzelSay++;
+            else formatGrupSay++;
+
+            if ((k.cinsiyet || 'kadin') === 'erkek') cinsiyetSayaci.erkek++;
+            else cinsiyetSayaci.kadin++;
+
+            if (tur.includes('özel') || tur.includes('ozel')) {
+                ozelSay++; uzmanData[hocaKey].ozel++;
+            } else if (tur.includes('hamile')) {
+                hamileSay++; uzmanData[hocaKey].hamile++;
+            } else if (tur.includes('mat')) {
+                matSay++; uzmanData[hocaKey].mat++;
+            } else {
+                grupSay++; uzmanData[hocaKey].grup++;
+            }
+
+            k.uzmanAdCsv = uzmanData[hocaKey].ad;
+            k.formatCsv = format === 'ozel' ? 'Özel' : 'Grup';
+            k.durumCsv = durum === 'tamamlanan' ? 'Tamamlanan' : 'Gelecek';
+            alanSayaci[hocaKey] = (alanSayaci[hocaKey] || 0) + 1;
+            
+            const saat = (k.saat || "00:00").split(':')[0]; 
+            saatSayaci[saat] = (saatSayaci[saat] || 0) + 1;
+
+            const d = new Date(k.tarih);
+            let dayIndex = d.getDay(); 
+            dayIndex = dayIndex === 0 ? 6 : dayIndex - 1; 
+            if(!isNaN(dayIndex)) haftaninGunleri[dayIndex]++;
+            
+            const ayIndex = d.getMonth();
+            if(!isNaN(ayIndex)) aylikSayac[ayIndex]++;
+            
+            const haftaNo = getIsoWeek(d);
+            if(!isNaN(haftaNo) && haftaNo >= 1 && haftaNo <= 53) haftalikSayac[haftaNo - 1]++;
+        });
+
+        const toplamRez = veriSeti.length || 1; 
+        const digerSay = hamileSay + matSay;
+
+        let enYogunSaat = "-";
+        let maxSaat = 0;
+        for (const [saat, sayi] of Object.entries(saatSayaci)) {
+            if (sayi > maxSaat) { maxSaat = sayi; enYogunSaat = `${saat}:00`; }
+        }
+
+        document.getElementById('totalRez').innerText = veriSeti.length;
+        document.getElementById('peakHour').innerText = enYogunSaat;
+        document.getElementById('totalGrup').innerText = grupSay;
+        document.getElementById('yuzdeGrup').innerText = `%${Math.round((grupSay / toplamRez) * 100)}`;
+        document.getElementById('totalOzel').innerText = ozelSay;
+        document.getElementById('yuzdeOzel').innerText = `%${Math.round((ozelSay / toplamRez) * 100)}`;
+        document.getElementById('totalDiger').innerText = digerSay;
+        document.getElementById('yuzdeDiger').innerText = `%${Math.round((digerSay / toplamRez) * 100)}`;
+
+        document.getElementById('durumTamamlananSayi').innerText = tamamlananSay;
+        document.getElementById('durumTamamlananYuzde').innerText = `%${Math.round((tamamlananSay / toplamRez) * 100)}`;
+        document.getElementById('durumGelecekSayi').innerText = gelecekSay;
+        document.getElementById('durumGelecekYuzde').innerText = `%${Math.round((gelecekSay / toplamRez) * 100)}`;
+
+        document.getElementById('formatGrupSayi').innerText = formatGrupSay;
+        document.getElementById('formatGrupYuzde').innerText = `%${Math.round((formatGrupSay / toplamRez) * 100)}`;
+        document.getElementById('formatOzelSayi').innerText = formatOzelSay;
+        document.getElementById('formatOzelYuzde').innerText = `%${Math.round((formatOzelSay / toplamRez) * 100)}`;
+
+        const tbody = document.getElementById('uzmanTabloGovdesi');
+        tbody.innerHTML = '';
+
+        tumEgitmenler.forEach(eg => {
+            const u = uzmanData[eg.anahtar] || { ad: eg.adSoyad, grup: 0, ozel: 0, hamile: 0, mat: 0 };
+            const toplam = u.grup + u.ozel + u.hamile + u.mat;
+            tbody.innerHTML += `
+                <tr>
+                    <td class="text-start ps-4 fw-bold ${toplam > 0 || eg.aktif ? 'text-dark' : 'text-muted opacity-50'}">${u.ad} ${eg.aktif ? '' : '<span class="badge bg-secondary ms-1">Pasif</span>'}</td>
+                    <td><span class="badge" style="background-color: var(--manu-teal);">${u.grup}</span></td>
+                    <td><span class="badge" style="background-color: var(--manu-teal-light);">${u.ozel}</span></td>
+                    <td><span class="badge" style="background-color: var(--manu-gold);">${u.hamile}</span></td>
+                    <td><span class="badge bg-secondary">${u.mat}</span></td>
+                    <td class="text-end pe-4 fw-bold fs-6" style="color: var(--manu-teal);">${toplam} Ders</td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML += `
+            <tr class="bg-light" style="border-top: 2px solid #dee2e6;">
+                <td class="text-start ps-4 fw-bold text-dark text-uppercase">Genel Toplam</td>
+                <td class="fw-bold">${grupSay}</td>
+                <td class="fw-bold">${ozelSay}</td>
+                <td class="fw-bold">${hamileSay}</td>
+                <td class="fw-bold">${matSay}</td>
+                <td class="text-end pe-4 fw-bold fs-5" style="color: var(--manu-gold);">${veriSeti.length} Ders</td>
+            </tr>
+        `;
+
+        // 1. EĞİTMEN PASTA GRAFİĞİ
+        const alanEtiketleri = tumEgitmenler.map(eg => eg.adSoyad);
+        const alanVerileri = tumEgitmenler.map(eg => alanSayaci[eg.anahtar] || 0);
+        const alanRenkleri = tumEgitmenler.map(eg => eg.renk || '#6B4C63');
+        if (alanChartInst) {
+            alanChartInst.updateOptions({ labels: alanEtiketleri, colors: alanRenkleri });
+            alanChartInst.updateSeries(alanVerileri);
+        } else {
+            alanChartInst = new ApexCharts(document.querySelector("#alanGrafik"), {
+                series: alanVerileri,
+                labels: alanEtiketleri,
+                chart: { type: 'donut', height: 260 },
+                colors: alanRenkleri,
+                dataLabels: { enabled: true },
+                legend: { position: 'bottom' }
+            });
+            alanChartInst.render();
+        }
+
+        // 2. DERS TÜRÜ PASTA GRAFİĞİ
+        const turVerileri = [grupSay, ozelSay, hamileSay, matSay];
+        if (turChartInst) {
+            turChartInst.updateSeries(turVerileri);
+        } else {
+            turChartInst = new ApexCharts(document.querySelector("#turGrafik"), {
+                series: turVerileri,
+                labels: ['Reformer Grup', 'Reformer Özel', 'Hamile Pilatesi', 'Mat Pilates'],
+                chart: { type: 'donut', height: 260 },
+                colors: ['#6B4C63', '#9E6B8E', '#E563B1', '#c795b9'],
+                dataLabels: { enabled: true },
+                legend: { position: 'bottom' }
+            });
+            turChartInst.render();
+        }
+
+        // 3. GRUP / ÖZEL FORMAT PASTA GRAFİĞİ
+        const formatVerileri = [formatGrupSay, formatOzelSay];
+        if (formatChartInst) {
+            formatChartInst.updateSeries(formatVerileri);
+        } else {
+            formatChartInst = new ApexCharts(document.querySelector("#formatGrafik"), {
+                series: formatVerileri,
+                labels: ['Grup Dersi', 'Özel Ders'],
+                chart: { type: 'donut', height: 260 },
+                colors: ['#6B4C63', '#E563B1'],
+                dataLabels: { enabled: true },
+                legend: { position: 'bottom' }
+            });
+            formatChartInst.render();
+        }
+
+        // 4. TAMAMLANAN / GELECEK DURUM PASTA GRAFİĞİ
+        const durumVerileri = [tamamlananSay, gelecekSay];
+        if (durumChartInst) {
+            durumChartInst.updateSeries(durumVerileri);
+        } else {
+            durumChartInst = new ApexCharts(document.querySelector("#durumGrafik"), {
+                series: durumVerileri,
+                labels: ['Tamamlanan Dersler', 'Gelecek Dersler'],
+                chart: { type: 'donut', height: 260 },
+                colors: ['#198754', '#0d6efd'],
+                dataLabels: { enabled: true },
+                legend: { position: 'bottom' }
+            });
+            durumChartInst.render();
+        }
+
+        // 5. CİNSİYET PASTA GRAFİĞİ
+        const cinsiyetVerileri = [cinsiyetSayaci.kadin, cinsiyetSayaci.erkek];
+        if (cinsiyetChartInst) {
+            cinsiyetChartInst.updateSeries(cinsiyetVerileri);
+        } else {
+            cinsiyetChartInst = new ApexCharts(document.querySelector("#cinsiyetGrafik"), {
+                series: cinsiyetVerileri,
+                labels: ['Kadın Üye', 'Erkek Üye'],
+                chart: { type: 'donut', height: 260 },
+                colors: ['#E563B1', '#6B4C63'],
+                dataLabels: { enabled: true },
+                legend: { position: 'bottom' }
+            });
+            cinsiyetChartInst.render();
+        }
+
+        // 6. SAAT SÜTUN GRAFİĞİ
+        const saatVerileri = dinamikSaatler.map(s => saatSayaci[s] || 0);
+        const saatEtiketleri = dinamikSaatler.map(s => `${s}:00`);
+        if (saatChartInst) {
+            saatChartInst.updateOptions({ xaxis: { categories: saatEtiketleri } });
+            saatChartInst.updateSeries([{ data: saatVerileri }]);
+        } else {
+            saatChartInst = new ApexCharts(document.querySelector("#saatGrafik"), {
+                series: [{ name: 'Ders', data: saatVerileri }],
+                chart: { type: 'bar', height: 300, toolbar: { show: false } },
+                colors: ['#6B4C63'],
+                plotOptions: { bar: { borderRadius: 4, columnWidth: '60%' } },
+                dataLabels: { enabled: false },
+                xaxis: { categories: saatEtiketleri },
+                yaxis: { title: { text: 'Adet' }, labels: { formatter: (val) => Math.floor(val) } }
+            });
+            saatChartInst.render();
+        }
+
+        // 7. HAFTANIN GÜNLERİ TREND GRAFİĞİ
+        if (haftaChartInst) {
+            haftaChartInst.updateSeries([{ data: haftaninGunleri }]);
+        } else {
+            haftaChartInst = new ApexCharts(document.querySelector("#haftaGrafik"), {
+                series: [{ name: 'Dersler', data: haftaninGunleri }],
+                chart: { type: 'area', height: 300, toolbar: { show: false } },
+                colors: ['#E563B1'],
+                fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.2, stops: [0, 90, 100] } },
+                dataLabels: { enabled: true },
+                stroke: { curve: 'smooth', width: 3 },
+                xaxis: { categories: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] },
+                yaxis: { labels: { formatter: (val) => Math.floor(val) } }
+            });
+            haftaChartInst.render();
+        }
+
+        // 8. AYLIK YOĞUNLUK
+        const aylarEtiket = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+        if (aylikChartInst) {
+            aylikChartInst.updateSeries([{ data: aylikSayac }]);
+        } else {
+            aylikChartInst = new ApexCharts(document.querySelector("#aylikGrafik"), {
+                series: [{ name: 'Ders', data: aylikSayac }],
+                chart: { type: 'bar', height: 300, toolbar: { show: false } },
+                colors: ['#9E6B8E'],
+                dataLabels: { enabled: true, style: { colors: ['#fff'] } },
+                xaxis: { categories: aylarEtiket },
+                yaxis: { labels: { formatter: (val) => Math.floor(val) } }
+            });
+            aylikChartInst.render();
+        }
+
+        // 9. HAFTALIK YOĞUNLUK
+        const haftalarEtiket = Array.from({length: 52}, (_, i) => `${i+1}. Hafta`);
+        const haftalikDataGosterim = haftalikSayac.slice(0, 52); 
+        if (haftalikChartInst) {
+            haftalikChartInst.updateSeries([{ data: haftalikDataGosterim }]);
+        } else {
+            haftalikChartInst = new ApexCharts(document.querySelector("#haftalikGrafik"), {
+                series: [{ name: 'Ders', data: haftalikDataGosterim }],
+                chart: { type: 'area', height: 300, toolbar: { show: false } },
+                colors: ['#E563B1'],
+                dataLabels: { enabled: false },
+                stroke: { curve: 'smooth', width: 2 },
+                xaxis: { categories: haftalarEtiket, tickAmount: 10 },
+                yaxis: { labels: { formatter: (val) => Math.floor(val) } }
+            });
+            haftalikChartInst.render();
+        }
+    }
+
+    window.csvIndir = function() {
+        if(!aktifFiltreliVeri || aktifFiltreliVeri.length === 0) {
+            alert("İndirilecek veri bulunamadı.");
+            return;
+        }
+
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFFTarih,Saat,Üye Adı,Cinsiyet,Ders Türü,Format,Durum,Eğitmen Adı\n";
+        aktifFiltreliVeri.forEach(k => {
+            const cinsiyetStr = (k.cinsiyet || 'kadin') === 'erkek' ? 'Erkek' : 'Kadın';
+            csvContent += `${k.tarih},${k.saat},"${k.kisiAdi}","${cinsiyetStr}","${k.rezervasyonTuru}","${k.formatCsv || 'Grup'}","${k.durumCsv || 'Gelecek'}","${k.uzmanAdCsv}"\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `BusraPilates_Rapor_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+</script>
